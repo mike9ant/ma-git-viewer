@@ -1,0 +1,150 @@
+import { useCommits } from '@/api/hooks'
+import { useSelectionStore } from '@/store/selectionStore'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { GitCommit, GitCompare } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+export function HistoryTab() {
+  const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
+  const { data, isLoading, error } = useCommits(currentPath || undefined)
+
+  const handleCompare = () => {
+    if (selectedCommits.length === 2) {
+      const [from, to] = selectedCommits
+      openDiffModal(from, to)
+    } else if (selectedCommits.length === 1) {
+      openDiffModal(null, selectedCommits[0])
+    }
+  }
+
+  const handleCompareWithCurrent = (commitOid: string) => {
+    if (data?.commits[0]) {
+      openDiffModal(commitOid, data.commits[0].oid)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        Loading...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full text-red-500">
+        Error loading commits
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Actions bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">
+            {data?.total} commits
+            {currentPath && ` affecting ${currentPath}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedCommits.length > 0 && (
+            <>
+              <span className="text-sm text-gray-500">
+                {selectedCommits.length} selected
+              </span>
+              <Button variant="outline" size="sm" onClick={clearCommitSelection}>
+                Clear
+              </Button>
+              <Button size="sm" onClick={handleCompare} disabled={selectedCommits.length === 0}>
+                <GitCompare className="h-4 w-4 mr-1" />
+                Compare
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Commits list */}
+      <ScrollArea className="flex-1">
+        <div className="divide-y divide-gray-200">
+          {data?.commits.map((commit, index) => {
+            const isSelected = selectedCommits.includes(commit.oid)
+            const isLatest = index === 0
+
+            return (
+              <div
+                key={commit.oid}
+                className={cn(
+                  "flex items-start gap-3 px-4 py-3 hover:bg-gray-50",
+                  isSelected && "bg-blue-50"
+                )}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggleCommitSelection(commit.oid)}
+                  className="mt-1"
+                />
+                <GitCommit className="h-4 w-4 mt-1 text-gray-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">
+                      {commit.message.split('\n')[0]}
+                    </span>
+                    {isLatest && (
+                      <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                        HEAD
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="text-xs text-gray-500">
+                      {commit.oid.substring(0, 7)}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {commit.author.name}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {commit.relative_time}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => openDiffModal(null, commit.oid)}
+                  >
+                    View
+                  </Button>
+                  {!isLatest && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleCompareWithCurrent(commit.oid)}
+                    >
+                      vs HEAD
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {data?.has_more && (
+          <div className="flex justify-center py-4">
+            <Button variant="outline" size="sm">
+              Load more
+            </Button>
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+}

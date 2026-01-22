@@ -1,0 +1,67 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffResponse {
+    pub from_commit: Option<String>,
+    pub to_commit: String,
+    pub path: Option<String>,
+    pub files: Vec<FileDiff>,
+    pub stats: DiffStats,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileDiff {
+    pub old_path: Option<String>,
+    pub new_path: Option<String>,
+    pub status: DiffStatus,
+    pub hunks: Vec<DiffHunk>,
+    pub old_content: Option<String>,
+    pub new_content: Option<String>,
+    pub is_binary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DiffStatus {
+    Added,
+    Deleted,
+    Modified,
+    Renamed,
+    Copied,
+    TypeChanged,
+    Unmodified,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffHunk {
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub header: String,
+    pub lines: Vec<DiffLine>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffLine {
+    pub line_type: LineType,
+    pub old_lineno: Option<u32>,
+    pub new_lineno: Option<u32>,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LineType {
+    Context,
+    Addition,
+    Deletion,
+    Header,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DiffStats {
+    pub files_changed: usize,
+    pub insertions: usize,
+    pub deletions: usize,
+}

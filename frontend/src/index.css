@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* React Resizable Panels */
+.resize-handle {
+  background-color: #e5e7eb;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: #d1d5db;
+}
+
+[data-resize-handle-active] {
+  background-color: #9ca3af;
+}
