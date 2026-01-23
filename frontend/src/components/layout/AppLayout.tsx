@@ -6,12 +6,14 @@ import { BottomPanel } from '@/components/bottom-panel/BottomPanel'
 import { DiffModal } from '@/components/diff/DiffModal'
 import { GitBranch } from 'lucide-react'
 
-function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
+function ResizeHandle({ id, direction }: { id: string; direction: 'horizontal' | 'vertical' }) {
   return (
     <Separator
+      id={id}
       className={`resize-handle ${
-        direction === 'horizontal' ? 'w-1' : 'h-1'
+        direction === 'horizontal' ? 'w-2' : 'h-2'
       }`}
+      style={{ cursor: direction === 'horizontal' ? 'col-resize' : 'row-resize' }}
     />
   )
 }
@@ -53,19 +55,19 @@ export function AppLayout() {
       </header>
 
       {/* Main content */}
-      <Group orientation="horizontal" className="flex-1">
+      <Group orientation="horizontal" style={{ flex: 1 }}>
         {/* Left panel - File tree */}
-        <Panel id="file-tree" defaultSize={20} minSize={15} maxSize={40}>
+        <Panel id="file-tree" defaultSize={25} minSize={5}>
           <div className="h-full border-r border-gray-200 bg-white">
             <FileTree />
           </div>
         </Panel>
 
-        <ResizeHandle direction="horizontal" />
+        <ResizeHandle id="horizontal-resize" direction="horizontal" />
 
         {/* Right section */}
-        <Panel id="main-content" defaultSize={80}>
-          <Group orientation="vertical">
+        <Panel id="main-content" defaultSize={75} minSize={5}>
+          <Group orientation="vertical" style={{ height: '100%' }}>
             {/* Top - File list */}
             <Panel id="file-list" defaultSize={60} minSize={30}>
               <div className="h-full bg-white">
@@ -73,7 +75,7 @@ export function AppLayout() {
               </div>
             </Panel>
 
-            <ResizeHandle direction="vertical" />
+            <ResizeHandle id="vertical-resize" direction="vertical" />
 
             {/* Bottom - History/Status panel */}
             <Panel id="bottom-panel" defaultSize={40} minSize={20}>
