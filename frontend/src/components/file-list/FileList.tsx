@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Folder, File, ArrowLeft } from 'lucide-react'
 import { useTree } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
@@ -49,7 +50,20 @@ function FileRow({ entry, onDoubleClick, onClick, isSelected }: FileRowProps) {
 
 export function FileList() {
   const { currentPath, setCurrentPath, selectedFile, setSelectedFile } = useSelectionStore()
-  const { data: entries, isLoading, error } = useTree(currentPath || undefined)
+
+  // Fast query: get file list without commit info
+  const { data: fastEntries, isLoading: fastLoading, error } = useTree(currentPath || undefined, false)
+
+  // Slow query: get file list with commit info (runs in background)
+  const { data: fullEntries } = useTree(currentPath || undefined, true)
+
+  // Use full entries if available, otherwise use fast entries
+  const entries = useMemo(() => {
+    if (fullEntries) return fullEntries
+    return fastEntries
+  }, [fastEntries, fullEntries])
+
+  const isLoading = fastLoading
 
   const handleNavigateUp = () => {
     if (!currentPath) return
