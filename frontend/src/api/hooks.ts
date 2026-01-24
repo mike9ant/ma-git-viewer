@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
+import { useSelectionStore } from '@/store/selectionStore'
 
 export function useRepository() {
   return useQuery({
@@ -49,5 +50,31 @@ export function useDirectoryInfo(path?: string) {
   return useQuery({
     queryKey: ['directoryInfo', path],
     queryFn: () => api.getDirectoryInfo(path),
+  })
+}
+
+export function useDirectoryListing(path?: string) {
+  return useQuery({
+    queryKey: ['directoryListing', path],
+    queryFn: () => api.listDirectory(path),
+  })
+}
+
+export function useSwitchRepository() {
+  const queryClient = useQueryClient()
+  const resetSelection = useSelectionStore((state) => state.resetSelection)
+
+  return useMutation({
+    mutationFn: api.switchRepository,
+    onSuccess: () => {
+      resetSelection()
+      // Invalidate all repository-related queries to force refetch
+      queryClient.invalidateQueries({ queryKey: ['repository'] })
+      queryClient.invalidateQueries({ queryKey: ['tree'] })
+      queryClient.invalidateQueries({ queryKey: ['fullTree'] })
+      queryClient.invalidateQueries({ queryKey: ['commits'] })
+      queryClient.invalidateQueries({ queryKey: ['file'] })
+      queryClient.invalidateQueries({ queryKey: ['directoryInfo'] })
+    },
   })
 }

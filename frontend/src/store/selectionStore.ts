@@ -14,6 +14,7 @@ interface SelectionState {
   clearCommitSelection: () => void
   openDiffModal: (from: string | null, to: string) => void
   closeDiffModal: () => void
+  resetSelection: () => void
 }
 
 export const useSelectionStore = create<SelectionState>((set) => ({
@@ -48,4 +49,14 @@ export const useSelectionStore = create<SelectionState>((set) => ({
 
   closeDiffModal: () =>
     set({ diffModalOpen: false, diffCommitFrom: null, diffCommitTo: null }),
+
+  resetSelection: () =>
+    set({
+      currentPath: '',
+      selectedFile: null,
+      selectedCommits: [],
+      diffModalOpen: false,
+      diffCommitFrom: null,
+      diffCommitTo: null,
+    }),
 }))

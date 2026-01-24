@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::git::SharedRepo;
 use crate::models::DirectoryInfo;
 
@@ -24,6 +24,7 @@ async fn get_directory_info(
     State(repo): State<SharedRepo>,
     Query(query): Query<DirectoryQuery>,
 ) -> Result<Json<DirectoryInfo>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let info = repo.get_directory_info(query.path.as_deref())?;
     Ok(Json(info))
 }

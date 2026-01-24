@@ -3,7 +3,7 @@ mod git;
 mod models;
 mod routes;
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use axum::Router;
 use tower_http::cors::{Any, CorsLayer};
@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Open the git repository
     let repo = GitRepository::open(&repo_path)?;
-    let shared_repo = Arc::new(repo);
+    let shared_repo = Arc::new(RwLock::new(repo));
 
     // CORS configuration for development
     let cors = CorsLayer::new()

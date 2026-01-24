@@ -1,5 +1,6 @@
 pub mod commits;
 pub mod diff;
+pub mod filesystem;
 pub mod repository;
 pub mod status;
 pub mod tree;
@@ -14,5 +15,6 @@ pub fn create_router(repo: SharedRepo) -> Router {
         .merge(tree::routes(repo.clone()))
         .merge(commits::routes(repo.clone()))
         .merge(diff::routes(repo.clone()))
-        .merge(status::routes(repo))
+        .merge(status::routes(repo.clone()))
+        .merge(filesystem::routes(repo))
 }

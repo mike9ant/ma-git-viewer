@@ -107,3 +107,16 @@ export interface DiffStats {
   insertions: number
   deletions: number
 }
+
+export interface FilesystemEntry {
+  name: string
+  path: string
+  is_directory: boolean
+  is_git_repo: boolean
+}
+
+export interface DirectoryListing {
+  current_path: string
+  parent_path: string | null
+  entries: FilesystemEntry[]
+}

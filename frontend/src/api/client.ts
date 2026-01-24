@@ -5,6 +5,7 @@ import type {
   CommitListResponse,
   DiffResponse,
   DirectoryInfo,
+  DirectoryListing,
 } from './types'
 
 const API_BASE = '/api/v1'
@@ -56,5 +57,24 @@ export const api = {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
     return fetchJson<DirectoryInfo>(`${API_BASE}/repository/directory-info?${params}`)
+  },
+
+  listDirectory: (path?: string) => {
+    const params = new URLSearchParams()
+    if (path) params.set('path', path)
+    return fetchJson<DirectoryListing>(`${API_BASE}/filesystem/list?${params}`)
+  },
+
+  switchRepository: async (path: string): Promise<RepositoryInfo> => {
+    const response = await fetch(`${API_BASE}/filesystem/switch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || 'Request failed')
+    }
+    return response.json()
   },
 }

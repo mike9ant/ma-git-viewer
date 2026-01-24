@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::git::SharedRepo;
 use crate::models::CommitListResponse;
 
@@ -32,6 +32,7 @@ async fn get_commits(
     State(repo): State<SharedRepo>,
     Query(query): Query<CommitsQuery>,
 ) -> Result<Json<CommitListResponse>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let response = repo.get_commits(query.path.as_deref(), query.limit, query.offset)?;
     Ok(Json(response))
 }

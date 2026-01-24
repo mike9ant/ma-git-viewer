@@ -1,6 +1,6 @@
 use git2::Repository;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::error::{AppError, Result};
 use crate::models::{CommitInfo, RepositoryInfo};
@@ -95,4 +95,4 @@ pub fn format_relative_time(timestamp: i64) -> String {
     }
 }
 
-pub type SharedRepo = Arc<GitRepository>;
+pub type SharedRepo = Arc<RwLock<GitRepository>>;

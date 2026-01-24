@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::git::SharedRepo;
 use crate::models::DiffResponse;
 
@@ -26,6 +26,7 @@ async fn get_diff(
     State(repo): State<SharedRepo>,
     Query(query): Query<DiffQuery>,
 ) -> Result<Json<DiffResponse>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let response = repo.get_diff(
         query.from.as_deref(),
         &query.to,

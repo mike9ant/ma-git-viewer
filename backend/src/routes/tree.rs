@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::git::SharedRepo;
 use crate::models::{FullTreeEntry, TreeEntry};
 
@@ -32,6 +32,7 @@ async fn get_tree(
     State(repo): State<SharedRepo>,
     Query(query): Query<TreeQuery>,
 ) -> Result<Json<Vec<TreeEntry>>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let entries = repo.get_tree_entries(
         query.path.as_deref(),
         query.include_last_commit,
@@ -40,6 +41,7 @@ async fn get_tree(
 }
 
 async fn get_full_tree(State(repo): State<SharedRepo>) -> Result<Json<Vec<FullTreeEntry>>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let tree = repo.get_full_tree()?;
     Ok(Json(tree))
 }
@@ -53,6 +55,7 @@ async fn get_file_content(
     State(repo): State<SharedRepo>,
     Query(query): Query<FileQuery>,
 ) -> Result<Json<String>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
     let content = repo.get_file_content(&query.path)?;
     Ok(Json(content))
 }

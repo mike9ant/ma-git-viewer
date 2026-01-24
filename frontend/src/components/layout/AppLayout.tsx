@@ -4,7 +4,7 @@ import { FileTree } from '@/components/file-tree/FileTree'
 import { FileList } from '@/components/file-list/FileList'
 import { BottomPanel } from '@/components/bottom-panel/BottomPanel'
 import { DiffModal } from '@/components/diff/DiffModal'
-import { GitBranch } from 'lucide-react'
+import { RepoSwitcher } from '@/components/repo-switcher/RepoSwitcher'
 
 function ResizeHandle({ id, direction }: { id: string; direction: 'horizontal' | 'vertical' }) {
   return (
@@ -44,7 +44,7 @@ export function AppLayout() {
     <div className="h-screen flex flex-col">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white">
-        <GitBranch className="h-5 w-5 text-gray-700" />
+        <RepoSwitcher />
         <div>
           <h1 className="text-sm font-semibold">{repo?.name}</h1>
           <p className="text-xs text-gray-500">
