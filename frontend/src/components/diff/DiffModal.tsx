@@ -7,8 +7,22 @@ import {
 import { useSelectionStore } from '@/store/selectionStore'
 import { DiffViewer } from './DiffViewer'
 
+function formatCompactDateTime(timestamp: number | null): string {
+  if (!timestamp) return ''
+  const date = new Date(timestamp * 1000)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 export function DiffModal() {
-  const { diffModalOpen, diffCommitFrom, diffCommitTo, closeDiffModal, currentPath } = useSelectionStore()
+  const {
+    diffModalOpen,
+    diffCommitFrom,
+    diffCommitTo,
+    diffCommitFromTimestamp,
+    diffCommitToTimestamp,
+    closeDiffModal,
+    currentPath
+  } = useSelectionStore()
 
   if (!diffCommitTo) return null
 
@@ -25,18 +39,18 @@ export function DiffModal() {
               <>
                 Comparing{' '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {diffCommitFrom.substring(0, 7)}
+                  {formatCompactDateTime(diffCommitFromTimestamp)} {diffCommitFrom.substring(0, 7)}
                 </code>
                 {' ... '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {diffCommitTo.substring(0, 7)}
+                  {formatCompactDateTime(diffCommitToTimestamp)} {diffCommitTo.substring(0, 7)}
                 </code>
               </>
             ) : (
               <>
                 Changes in{' '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {diffCommitTo.substring(0, 7)}
+                  {formatCompactDateTime(diffCommitToTimestamp)} {diffCommitTo.substring(0, 7)}
                 </code>
               </>
             )}

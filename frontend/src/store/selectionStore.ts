@@ -7,12 +7,14 @@ interface SelectionState {
   diffModalOpen: boolean
   diffCommitFrom: string | null
   diffCommitTo: string | null
+  diffCommitFromTimestamp: number | null
+  diffCommitToTimestamp: number | null
 
   setCurrentPath: (path: string) => void
   setSelectedFile: (file: string | null) => void
   toggleCommitSelection: (commitOid: string) => void
   clearCommitSelection: () => void
-  openDiffModal: (from: string | null, to: string) => void
+  openDiffModal: (from: string | null, to: string, fromTimestamp?: number | null, toTimestamp?: number | null) => void
   closeDiffModal: () => void
   resetSelection: () => void
 }
@@ -24,6 +26,8 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   diffModalOpen: false,
   diffCommitFrom: null,
   diffCommitTo: null,
+  diffCommitFromTimestamp: null,
+  diffCommitToTimestamp: null,
 
   setCurrentPath: (path) => set({ currentPath: path, selectedFile: null }),
 
@@ -44,11 +48,23 @@ export const useSelectionStore = create<SelectionState>((set) => ({
 
   clearCommitSelection: () => set({ selectedCommits: [] }),
 
-  openDiffModal: (from, to) =>
-    set({ diffModalOpen: true, diffCommitFrom: from, diffCommitTo: to }),
+  openDiffModal: (from, to, fromTimestamp = null, toTimestamp = null) =>
+    set({
+      diffModalOpen: true,
+      diffCommitFrom: from,
+      diffCommitTo: to,
+      diffCommitFromTimestamp: fromTimestamp,
+      diffCommitToTimestamp: toTimestamp,
+    }),
 
   closeDiffModal: () =>
-    set({ diffModalOpen: false, diffCommitFrom: null, diffCommitTo: null }),
+    set({
+      diffModalOpen: false,
+      diffCommitFrom: null,
+      diffCommitTo: null,
+      diffCommitFromTimestamp: null,
+      diffCommitToTimestamp: null,
+    }),
 
   resetSelection: () =>
     set({
@@ -58,5 +74,7 @@ export const useSelectionStore = create<SelectionState>((set) => ({
       diffModalOpen: false,
       diffCommitFrom: null,
       diffCommitTo: null,
+      diffCommitFromTimestamp: null,
+      diffCommitToTimestamp: null,
     }),
 }))

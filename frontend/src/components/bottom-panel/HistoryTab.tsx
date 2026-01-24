@@ -10,18 +10,23 @@ export function HistoryTab() {
   const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
   const { data, isLoading, error } = useCommits(currentPath || undefined)
 
+  const getCommitTimestamp = (oid: string) => {
+    return data?.commits.find(c => c.oid === oid)?.timestamp ?? null
+  }
+
   const handleCompare = () => {
     if (selectedCommits.length === 2) {
       const [from, to] = selectedCommits
-      openDiffModal(from, to)
+      openDiffModal(from, to, getCommitTimestamp(from), getCommitTimestamp(to))
     } else if (selectedCommits.length === 1) {
-      openDiffModal(null, selectedCommits[0])
+      openDiffModal(null, selectedCommits[0], null, getCommitTimestamp(selectedCommits[0]))
     }
   }
 
   const handleCompareWithCurrent = (commitOid: string) => {
     if (data?.commits[0]) {
-      openDiffModal(commitOid, data.commits[0].oid)
+      const headCommit = data.commits[0]
+      openDiffModal(commitOid, headCommit.oid, getCommitTimestamp(commitOid), headCommit.timestamp)
     }
   }
 
@@ -103,6 +108,9 @@ export function HistoryTab() {
                   </div>
                   <div className="flex items-center gap-4 mt-1">
                     <span className="text-xs text-gray-500">
+                      {new Date(commit.timestamp * 1000).toLocaleDateString()}
+                    </span>
+                    <span className="text-xs text-gray-500 font-mono">
                       {commit.oid.substring(0, 7)}
                     </span>
                     <span className="text-xs text-gray-500">
@@ -118,7 +126,7 @@ export function HistoryTab() {
                     variant="ghost"
                     size="sm"
                     className="text-xs"
-                    onClick={() => openDiffModal(null, commit.oid)}
+                    onClick={() => openDiffModal(null, commit.oid, null, commit.timestamp)}
                   >
                     View
                   </Button>
