@@ -2,7 +2,6 @@ import { useCommits } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { GitCommit, GitCompare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -101,7 +100,8 @@ export function HistoryTab() {
       <ScrollArea className="flex-1">
         <div className="divide-y divide-gray-200">
           {data?.commits.map((commit, index) => {
-            const isSelected = selectedCommits.includes(commit.oid)
+            const selectionIndex = selectedCommits.indexOf(commit.oid)
+            const isSelected = selectionIndex !== -1
             const isLatest = index === 0
 
             return (
@@ -112,11 +112,17 @@ export function HistoryTab() {
                   isSelected && "bg-blue-50"
                 )}
               >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggleCommitSelection(commit.oid)}
-                  className="mt-1"
-                />
+                <button
+                  onClick={() => toggleCommitSelection(commit.oid)}
+                  className={cn(
+                    "mt-1 h-4 w-4 shrink-0 rounded-sm border text-xs font-medium flex items-center justify-center",
+                    isSelected
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "border-gray-400 hover:border-gray-500"
+                  )}
+                >
+                  {isSelected ? selectionIndex + 1 : ''}
+                </button>
                 <GitCommit className="h-4 w-4 mt-1 text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
