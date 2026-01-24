@@ -70,19 +70,106 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [splitView, setSplitView] = useState(false)
   const [filePanelOpen, setFilePanelOpen] = useState(true)
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
+  const selectedFileIndexRef = useRef<number | null>(null)
   const fileRefs = useRef<(HTMLDivElement | null)[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const visibilityMapRef = useRef<Map<number, number>>(new Map())
+  const isUserScrollingRef = useRef(true)
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedFileIndexRef.current = selectedFileIndex
+  }, [selectedFileIndex])
 
   // Reset refs array when files change
   useEffect(() => {
     if (diff) {
       fileRefs.current = fileRefs.current.slice(0, diff.files.length)
+      visibilityMapRef.current.clear()
+    }
+  }, [diff])
+
+  // Set up IntersectionObserver to track file visibility
+  useEffect(() => {
+    if (!diff || !scrollContainerRef.current) return
+
+    const scrollContainer = scrollContainerRef.current
+
+    const scheduleSelectionUpdate = () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+      }
+
+      updateTimeoutRef.current = setTimeout(() => {
+        if (!isUserScrollingRef.current) return
+
+        const visibilityMap = visibilityMapRef.current
+        const currentIndex = selectedFileIndexRef.current
+
+        // Check if current selection is still mostly visible (>20%)
+        if (currentIndex !== null && visibilityMap.has(currentIndex)) {
+          const currentVisibility = visibilityMap.get(currentIndex) || 0
+          if (currentVisibility > 0.2) {
+            return
+          }
+        }
+
+        // Find the file with best visibility
+        let bestIndex: number | null = null
+        let bestVisibility = 0
+
+        visibilityMap.forEach((visibility, index) => {
+          if (visibility > bestVisibility) {
+            bestVisibility = visibility
+            bestIndex = index
+          }
+        })
+
+        if (bestIndex !== null && bestIndex !== selectedFileIndexRef.current) {
+          setSelectedFileIndex(bestIndex)
+        }
+      }, 150)
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = parseInt(entry.target.getAttribute('data-file-index') || '-1', 10)
+          if (index >= 0) {
+            visibilityMapRef.current.set(index, entry.intersectionRatio)
+          }
+        })
+        scheduleSelectionUpdate()
+      },
+      {
+        root: scrollContainer,
+        threshold: [0, 0.25],
+      }
+    )
+
+    // Observe all file elements
+    fileRefs.current.forEach((ref) => {
+      if (ref) observer.observe(ref)
+    })
+
+    return () => {
+      observer.disconnect()
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+      }
     }
   }, [diff])
 
   const scrollToFile = (index: number) => {
+    isUserScrollingRef.current = false
     setSelectedFileIndex(index)
     fileRefs.current[index]?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    // Re-enable scroll-based selection after a short delay
+    setTimeout(() => {
+      isUserScrollingRef.current = true
+    }, 1000)
   }
 
   if (isLoading) {
@@ -167,7 +254,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                     onClick={() => scrollToFile(index)}
                     className={cn(
                       "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-100 transition-colors",
-                      selectedFileIndex === index && "bg-blue-50 hover:bg-blue-100"
+                      selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200"
                     )}
                     title={fileName}
                   >
@@ -181,7 +268,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
         )}
 
         {/* Scrollable diff content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1" viewportRef={scrollContainerRef}>
             <div className="p-4 space-y-6">
               {diff.files.map((file, index) => {
                 const fileName = file.new_path || file.old_path || 'unknown'
@@ -190,6 +277,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                   <div
                     key={index}
                     ref={(el) => { fileRefs.current[index] = el }}
+                    data-file-index={index}
                     className={cn(
                       "border border-gray-200 rounded-lg overflow-hidden",
                       selectedFileIndex === index && "ring-2 ring-blue-400"
