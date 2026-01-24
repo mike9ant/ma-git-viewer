@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, memo, useCallback } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { useDiff } from '@/api/hooks'
+import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
@@ -160,8 +161,15 @@ const FileDiffContent = memo(function FileDiffContent({
 })
 
 export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
-  const [splitView, setSplitView] = useState(false)
-  const [filePanelOpen, setFilePanelOpen] = useState(true)
+  const {
+    diffFilePanelOpen: filePanelOpen,
+    diffSplitView: splitView,
+    diffFilesCollapsedByDefault,
+    setDiffFilePanelOpen: setFilePanelOpen,
+    setDiffSplitView: setSplitView,
+    setDiffFilesCollapsedByDefault,
+  } = useSettingsStore()
+
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const selectedFileIndexRef = useRef<number | null>(null)
@@ -170,7 +178,18 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const visibilityMapRef = useRef<Map<number, number>>(new Map())
   const isUserScrollingRef = useRef(true)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initializedRef = useRef(false)
   const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path)
+
+  // Initialize collapsed state based on settings when diff loads
+  useEffect(() => {
+    if (diff && !initializedRef.current) {
+      initializedRef.current = true
+      if (diffFilesCollapsedByDefault) {
+        setCollapsedFiles(new Set(diff.files.map((_, i) => i)))
+      }
+    }
+  }, [diff, diffFilesCollapsedByDefault])
 
   const toggleFileCollapsed = useCallback((index: number) => {
     setCollapsedFiles(prev => {
@@ -190,8 +209,10 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     if (!diff) return
     if (allCollapsed) {
       setCollapsedFiles(new Set())
+      setDiffFilesCollapsedByDefault(false)
     } else {
       setCollapsedFiles(new Set(diff.files.map((_, i) => i)))
+      setDiffFilesCollapsedByDefault(true)
     }
   }
 
