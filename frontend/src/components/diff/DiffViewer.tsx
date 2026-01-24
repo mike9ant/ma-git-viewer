@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { useDiff } from '@/api/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileEdit, FilePlus, FileMinus, FileX2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
 
@@ -44,6 +46,7 @@ function getStatusLabel(status: FileDiff['status']) {
 }
 
 export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
+  const [splitView, setSplitView] = useState(false)
   const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path)
 
   if (isLoading) {
@@ -65,23 +68,43 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   if (!diff) return null
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-4">
-        {/* Stats */}
-        <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
-          <span className="text-sm">
-            <span className="font-medium">{diff.stats.files_changed}</span> files changed
-          </span>
-          <span className="text-sm text-green-600">
-            +{diff.stats.insertions} insertions
-          </span>
-          <span className="text-sm text-red-600">
-            -{diff.stats.deletions} deletions
-          </span>
+    <div className="h-full flex flex-col">
+      {/* Stats - fixed header */}
+      <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+        <span className="text-sm">
+          <span className="font-medium">{diff.stats.files_changed}</span> files changed
+        </span>
+        <span className="text-sm text-green-600">
+          +{diff.stats.insertions} insertions
+        </span>
+        <span className="text-sm text-red-600">
+          -{diff.stats.deletions} deletions
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant={splitView ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setSplitView(true)}
+            className="h-7 px-2"
+            title="Side by side"
+          >
+            <Columns2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={!splitView ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setSplitView(false)}
+            className="h-7 px-2"
+            title="Unified"
+          >
+            <Rows2 className="h-4 w-4" />
+          </Button>
         </div>
+      </div>
 
-        {/* File diffs */}
-        <div className="space-y-6">
+      {/* Scrollable diff content */}
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-6">
           {diff.files.map((file, index) => {
             const fileName = file.new_path || file.old_path || 'unknown'
 
@@ -119,7 +142,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                     <ReactDiffViewer
                       oldValue={file.old_content || ''}
                       newValue={file.new_content || ''}
-                      splitView={false}
+                      splitView={splitView}
                       compareMethod={DiffMethod.LINES}
                       useDarkTheme={false}
                       styles={{
@@ -151,14 +174,14 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
               </div>
             )
           })}
-        </div>
 
-        {diff.files.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-gray-500">
-            No changes in this diff
-          </div>
-        )}
-      </div>
-    </ScrollArea>
+          {diff.files.length === 0 && (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+              No changes in this diff
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   )
 }

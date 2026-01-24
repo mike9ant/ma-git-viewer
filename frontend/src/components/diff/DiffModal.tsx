@@ -14,7 +14,7 @@ export function DiffModal() {
 
   return (
     <Dialog open={diffModalOpen} onOpenChange={(open) => !open && closeDiffModal()}>
-      <DialogContent className="max-w-5xl h-[80vh] flex flex-col">
+      <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {diffCommitFrom ? (
