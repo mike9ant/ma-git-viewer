@@ -1,5 +1,5 @@
 use git2::{DiffOptions, Repository, Sort};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::error::Result;
 use crate::git::repository::{commit_to_info, format_relative_time, GitRepository};
@@ -24,6 +24,96 @@ pub fn get_last_commit_for_path(repo: &Repository, path: &str) -> Result<CommitI
     let head = repo.head()?;
     let commit = head.peel_to_commit()?;
     Ok(commit_to_info(&commit))
+}
+
+/// Get last commit info for multiple paths in a single history walk.
+/// Much more efficient than calling get_last_commit_for_path for each path.
+pub fn get_last_commits_for_paths(repo: &Repository, paths: &[String]) -> Result<HashMap<String, CommitInfo>> {
+    if paths.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let mut results: HashMap<String, CommitInfo> = HashMap::new();
+    let mut remaining: HashSet<&str> = paths.iter().map(|s| s.as_str()).collect();
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TIME)?;
+    revwalk.push_head()?;
+
+    for oid in revwalk {
+        if remaining.is_empty() {
+            break; // Found all paths
+        }
+
+        let oid = oid?;
+        let commit = repo.find_commit(oid)?;
+
+        // Check which remaining paths this commit touches
+        let touched = get_touched_paths(repo, &commit, &remaining)?;
+
+        for path in touched {
+            if remaining.remove(path.as_str()) {
+                results.insert(path, commit_to_info(&commit));
+            }
+        }
+    }
+
+    // For any paths not found, use HEAD commit as fallback
+    if !remaining.is_empty() {
+        let head = repo.head()?;
+        let commit = head.peel_to_commit()?;
+        let fallback_info = commit_to_info(&commit);
+
+        for path in remaining {
+            results.insert(path.to_string(), fallback_info.clone());
+        }
+    }
+
+    Ok(results)
+}
+
+/// Check which of the given paths are touched by this commit.
+fn get_touched_paths(repo: &Repository, commit: &git2::Commit, paths: &HashSet<&str>) -> Result<Vec<String>> {
+    let tree = commit.tree()?;
+
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(commit.parent(0)?.tree()?)
+    } else {
+        None
+    };
+
+    let diff = repo.diff_tree_to_tree(
+        parent_tree.as_ref(),
+        Some(&tree),
+        None, // No pathspec filter - we'll check manually
+    )?;
+
+    let mut touched = Vec::new();
+
+    for delta in diff.deltas() {
+        // Check both old and new paths (for renames)
+        if let Some(path) = delta.new_file().path().and_then(|p| p.to_str()) {
+            // Check if this path or any parent directory matches our targets
+            for &target in paths {
+                if path == target || path.starts_with(&format!("{}/", target)) || target.starts_with(&format!("{}/", path)) {
+                    if !touched.contains(&target.to_string()) {
+                        touched.push(target.to_string());
+                    }
+                }
+            }
+        }
+        if let Some(path) = delta.old_file().path().and_then(|p| p.to_str()) {
+            for &target in paths {
+                if path == target || path.starts_with(&format!("{}/", target)) || target.starts_with(&format!("{}/", path)) {
+                    if !touched.contains(&target.to_string()) {
+                        touched.push(target.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(touched)
 }
 
 fn commit_touches_path(repo: &Repository, commit: &git2::Commit, path: &str) -> Result<bool> {

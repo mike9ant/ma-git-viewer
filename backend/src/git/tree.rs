@@ -2,7 +2,7 @@ use git2::ObjectType;
 use std::path::Path;
 
 use crate::error::{AppError, Result};
-use crate::git::history::get_last_commit_for_path;
+use crate::git::history::get_last_commits_for_paths;
 use crate::git::repository::GitRepository;
 use crate::models::{EntryType, FullTreeEntry, TreeEntry};
 
@@ -30,6 +30,7 @@ impl GitRepository {
             let base_path = path.unwrap_or("");
             let mut entries = Vec::new();
 
+            // First pass: collect all entries without commit info
             for entry in target_tree.iter() {
                 let name = entry.name().unwrap_or("").to_string();
                 let entry_path = if base_path.is_empty() {
@@ -53,19 +54,23 @@ impl GitRepository {
                     None
                 };
 
-                let last_commit = if include_last_commit {
-                    get_last_commit_for_path(repo, &entry_path).ok()
-                } else {
-                    None
-                };
-
                 entries.push(TreeEntry {
                     name,
                     path: entry_path,
                     entry_type,
                     size,
-                    last_commit,
+                    last_commit: None,
                 });
+            }
+
+            // Second pass: batch fetch commit info for all paths at once
+            if include_last_commit {
+                let paths: Vec<String> = entries.iter().map(|e| e.path.clone()).collect();
+                let commit_map = get_last_commits_for_paths(repo, &paths)?;
+
+                for entry in &mut entries {
+                    entry.last_commit = commit_map.get(&entry.path).cloned();
+                }
             }
 
             // Sort: directories first, then files, alphabetically
