@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Folder, FolderOpen, File, GitBranch } from 'lucide-react'
+import { ChevronRight, ChevronDown, Folder, FolderOpen, GitBranch } from 'lucide-react'
 import { useFullTree } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -14,24 +14,23 @@ interface TreeNodeProps {
 }
 
 function TreeNode({ entry, level, expandedPaths, toggleExpand }: TreeNodeProps) {
-  const { currentPath, setCurrentPath, setSelectedFile } = useSelectionStore()
+  const { currentPath, setCurrentPath } = useSelectionStore()
   const isExpanded = expandedPaths.has(entry.path)
   const isDirectory = entry.entry_type === 'directory'
   const isSelected = currentPath === entry.path
 
-  const handleClick = () => {
-    if (isDirectory) {
-      toggleExpand(entry.path)
-      setCurrentPath(entry.path)
-    } else {
-      setSelectedFile(entry.path)
-    }
-  }
+  // Only show directories
+  if (!isDirectory) return null
 
-  const handleDoubleClick = () => {
-    if (isDirectory) {
-      setCurrentPath(entry.path)
+  // Filter children to only include directories
+  const directoryChildren = entry.children?.filter(child => child.entry_type === 'directory')
+  const hasSubfolders = directoryChildren && directoryChildren.length > 0
+
+  const handleClick = () => {
+    if (hasSubfolders) {
+      toggleExpand(entry.path)
     }
+    setCurrentPath(entry.path)
   }
 
   return (
@@ -43,32 +42,26 @@ function TreeNode({ entry, level, expandedPaths, toggleExpand }: TreeNodeProps) 
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
       >
-        {isDirectory ? (
-          <>
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />
-            )}
-            {isExpanded ? (
-              <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
-            ) : (
-              <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-            )}
-          </>
+        {hasSubfolders ? (
+          isExpanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />
+          )
         ) : (
-          <>
-            <span className="w-4" />
-            <File className="h-4 w-4 shrink-0 text-gray-500" />
-          </>
+          <span className="w-4 shrink-0" />
+        )}
+        {isExpanded && hasSubfolders ? (
+          <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+        ) : (
+          <Folder className="h-4 w-4 shrink-0 text-blue-500" />
         )}
         <span className="truncate">{entry.name}</span>
       </div>
-      {isDirectory && isExpanded && entry.children && (
+      {isExpanded && hasSubfolders && (
         <div>
-          {entry.children.map((child) => (
+          {directoryChildren.map((child) => (
             <TreeNode
               key={child.path}
               entry={child}
@@ -130,7 +123,7 @@ export function FileTree() {
           <GitBranch className="h-4 w-4 text-gray-500" />
           <span>Repository Root</span>
         </div>
-        {tree?.map((entry) => (
+        {tree?.filter(entry => entry.entry_type === 'directory').map((entry) => (
           <TreeNode
             key={entry.path}
             entry={entry}
