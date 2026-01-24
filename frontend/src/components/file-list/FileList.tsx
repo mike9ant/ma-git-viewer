@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Folder, File, ArrowLeft, FolderIcon, FileIcon } from 'lucide-react'
 import { useTree } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatBytes } from '@/lib/utils'
 import type { TreeEntry } from '@/api/types'
@@ -37,9 +38,10 @@ interface FileRowProps {
   onDoubleClick: () => void
   onClick: () => void
   isSelected: boolean
+  compact: boolean
 }
 
-function FileRow({ entry, onDoubleClick, onClick, isSelected }: FileRowProps) {
+function FileRow({ entry, onDoubleClick, onClick, isSelected, compact }: FileRowProps) {
   const isDirectory = entry.entry_type === 'directory'
 
   return (
@@ -51,23 +53,23 @@ function FileRow({ entry, onDoubleClick, onClick, isSelected }: FileRowProps) {
       onDoubleClick={onDoubleClick}
       onClick={onClick}
     >
-      <td className="px-4 py-2">
+      <td className={cn("px-4", compact ? "py-[5px]" : "py-2")}>
         <div className="flex items-center gap-2">
           {isDirectory ? (
-            <Folder className="h-4 w-4 text-blue-500" />
+            <Folder className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-blue-500")} />
           ) : (
-            <File className="h-4 w-4 text-gray-500" />
+            <File className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "text-gray-500")} />
           )}
-          <span className="text-sm">{entry.name}</span>
+          <span className={cn(compact ? "text-xs" : "text-sm")}>{entry.name}</span>
         </div>
       </td>
-      <td className="px-4 py-2 text-sm text-gray-500 truncate max-w-xs">
+      <td className={cn("px-4 text-gray-500 truncate max-w-xs", compact ? "py-1 text-xs" : "py-2 text-sm")}>
         {entry.last_commit?.message || '-'}
       </td>
-      <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
+      <td className={cn("px-4 text-gray-500 whitespace-nowrap", compact ? "py-1 text-xs" : "py-2 text-sm")}>
         {entry.last_commit?.relative_time || '-'}
       </td>
-      <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap text-right">
+      <td className={cn("px-4 text-gray-500 whitespace-nowrap text-right", compact ? "py-1 text-xs" : "py-2 text-sm")}>
         {isDirectory
           ? formatFolderContents(entry.file_count, entry.directory_count)
           : entry.size !== undefined ? formatBytes(entry.size) : '-'}
@@ -78,6 +80,7 @@ function FileRow({ entry, onDoubleClick, onClick, isSelected }: FileRowProps) {
 
 export function FileList() {
   const { currentPath, setCurrentPath, selectedFile, setSelectedFile } = useSelectionStore()
+  const { compactMode } = useSettingsStore()
 
   // Fast query: get file list without commit info
   const { data: fastEntries, isLoading: fastLoading, error } = useTree(currentPath || undefined, false)
@@ -152,16 +155,16 @@ export function FileList() {
         <table className="w-full">
           <thead className="sticky top-0 bg-white border-b border-gray-200">
             <tr>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">
+              <th className={cn("px-4 text-left font-medium text-gray-500", compactMode ? "py-[5px] text-xs" : "py-2 text-sm")}>
                 Name
               </th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">
+              <th className={cn("px-4 text-left font-medium text-gray-500", compactMode ? "py-[5px] text-xs" : "py-2 text-sm")}>
                 Last Commit
               </th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">
+              <th className={cn("px-4 text-left font-medium text-gray-500", compactMode ? "py-[5px] text-xs" : "py-2 text-sm")}>
                 Date
               </th>
-              <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">
+              <th className={cn("px-4 text-right font-medium text-gray-500", compactMode ? "py-[5px] text-xs" : "py-2 text-sm")}>
                 Size
               </th>
             </tr>
@@ -174,6 +177,7 @@ export function FileList() {
                 onDoubleClick={() => handleEntryDoubleClick(entry)}
                 onClick={() => handleEntryClick(entry)}
                 isSelected={selectedFile === entry.path}
+                compact={compactMode}
               />
             ))}
           </tbody>

@@ -1,10 +1,13 @@
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import { useRepository } from '@/api/hooks'
+import { useSettingsStore } from '@/store/settingsStore'
 import { FileTree } from '@/components/file-tree/FileTree'
 import { FileList } from '@/components/file-list/FileList'
 import { BottomPanel } from '@/components/bottom-panel/BottomPanel'
 import { DiffModal } from '@/components/diff/DiffModal'
 import { RepoSwitcher } from '@/components/repo-switcher/RepoSwitcher'
+import { Button } from '@/components/ui/button'
+import { Rows3, Rows4 } from 'lucide-react'
 
 function ResizeHandle({ id, direction }: { id: string; direction: 'horizontal' | 'vertical' }) {
   return (
@@ -20,6 +23,7 @@ function ResizeHandle({ id, direction }: { id: string; direction: 'horizontal' |
 
 export function AppLayout() {
   const { data: repo, isLoading, error } = useRepository()
+  const { compactMode, setCompactMode } = useSettingsStore()
 
   if (isLoading) {
     return (
@@ -45,13 +49,26 @@ export function AppLayout() {
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white">
         <RepoSwitcher />
-        <div>
+        <div className="flex-1">
           <h1 className="text-sm font-semibold">{repo?.name}</h1>
           <p className="text-xs text-gray-500">
             {repo?.head_branch && `Branch: ${repo.head_branch}`}
             {repo?.head_commit && ` - ${repo.head_commit.message.split('\n')[0].substring(0, 50)}`}
           </p>
         </div>
+        <Button
+          variant={compactMode ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => setCompactMode(!compactMode)}
+          className="h-7 px-2"
+          title={compactMode ? "Switch to comfortable view" : "Switch to compact view"}
+        >
+          {compactMode ? (
+            <Rows4 className="h-4 w-4" />
+          ) : (
+            <Rows3 className="h-4 w-4" />
+          )}
+        </Button>
       </header>
 
       {/* Main content */}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useCommits } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { GitCommit, GitCompare } from 'lucide-react'
@@ -24,6 +25,7 @@ function saveExcludedAuthors(authors: string[]) {
 
 export function HistoryTab() {
   const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
+  const { compactMode } = useSettingsStore()
   const [filterEnabled, setFilterEnabled] = useState(false)
   const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => loadExcludedAuthors())
 
@@ -147,14 +149,16 @@ export function HistoryTab() {
               <div
                 key={commit.oid}
                 className={cn(
-                  "flex items-start gap-3 px-4 py-3 hover:bg-gray-50",
+                  "flex items-start gap-3 px-4 hover:bg-gray-50",
+                  compactMode ? "py-1.5 gap-2" : "py-3",
                   isSelected && "bg-blue-50"
                 )}
               >
                 <button
                   onClick={() => toggleCommitSelection(commit.oid)}
                   className={cn(
-                    "mt-1 h-4 w-4 shrink-0 rounded-sm border text-xs font-medium flex items-center justify-center",
+                    "shrink-0 rounded-sm border font-medium flex items-center justify-center",
+                    compactMode ? "mt-0.5 h-3.5 w-3.5 text-[10px]" : "mt-1 h-4 w-4 text-xs",
                     isSelected
                       ? "bg-gray-900 text-white border-gray-900"
                       : "border-gray-400 hover:border-gray-500"
@@ -162,29 +166,29 @@ export function HistoryTab() {
                 >
                   {isSelected ? selectionIndex + 1 : ''}
                 </button>
-                <GitCommit className="h-4 w-4 mt-1 text-gray-500 shrink-0" />
+                <GitCommit className={cn("text-gray-500 shrink-0", compactMode ? "h-3.5 w-3.5 mt-0.5" : "h-4 w-4 mt-1")} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">
+                    <span className={cn("font-medium truncate", compactMode ? "text-xs" : "text-sm")}>
                       {commit.message.split('\n')[0]}
                     </span>
                     {isLatest && (
-                      <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                      <span className={cn("bg-green-100 text-green-700 rounded", compactMode ? "px-1 py-0 text-[10px]" : "px-1.5 py-0.5 text-xs")}>
                         HEAD
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 mt-1">
-                    <span className="text-xs text-gray-500">
+                  <div className={cn("flex items-center gap-4", compactMode ? "mt-0.5 gap-3" : "mt-1")}>
+                    <span className={cn("text-gray-500", compactMode ? "text-[11px]" : "text-xs")}>
                       {new Date(commit.timestamp * 1000).toLocaleDateString()}
                     </span>
-                    <span className="text-xs text-gray-500 font-mono">
+                    <span className={cn("text-gray-500 font-mono", compactMode ? "text-[11px]" : "text-xs")}>
                       {commit.oid.substring(0, 7)}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className={cn("text-gray-500", compactMode ? "text-[11px]" : "text-xs")}>
                       {commit.author.name}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className={cn("text-gray-500", compactMode ? "text-[11px]" : "text-xs")}>
                       {commit.relative_time}
                     </span>
                   </div>
@@ -193,7 +197,7 @@ export function HistoryTab() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs"
+                    className={cn(compactMode ? "text-[11px] h-6 px-2" : "text-xs")}
                     onClick={() => openDiffModal(null, commit.oid, null, commit.timestamp)}
                   >
                     View
@@ -202,7 +206,7 @@ export function HistoryTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs"
+                      className={cn(compactMode ? "text-[11px] h-6 px-2" : "text-xs")}
                       onClick={() => handleCompareWithCurrent(commit.oid)}
                     >
                       vs HEAD

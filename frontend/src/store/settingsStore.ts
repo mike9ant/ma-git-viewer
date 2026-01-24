@@ -14,6 +14,9 @@ interface SettingsState {
   // File tree settings
   fileTreeShowFiles: boolean
 
+  // Display density settings
+  compactMode: boolean
+
   // Setters
   setDiffFilePanelOpen: (open: boolean) => void
   setDiffSplitView: (split: boolean) => void
@@ -21,6 +24,7 @@ interface SettingsState {
   setDiffFilePanelSize: (size: number) => void
   setFileTreePanelSize: (size: number) => void
   setFileTreeShowFiles: (show: boolean) => void
+  setCompactMode: (compact: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -33,6 +37,7 @@ export const useSettingsStore = create<SettingsState>()(
       diffFilePanelSize: 20,
       fileTreePanelSize: 25,
       fileTreeShowFiles: false,
+      compactMode: false,
 
       // Setters
       setDiffFilePanelOpen: (open) => set({ diffFilePanelOpen: open }),
@@ -41,6 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       setDiffFilePanelSize: (size) => set({ diffFilePanelSize: size }),
       setFileTreePanelSize: (size) => set({ fileTreePanelSize: size }),
       setFileTreeShowFiles: (show) => set({ fileTreeShowFiles: show }),
+      setCompactMode: (compact) => set({ compactMode: compact }),
     }),
     {
       name: 'git-viewer-settings',
