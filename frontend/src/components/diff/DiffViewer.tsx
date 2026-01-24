@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, memo, useCallback } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
+import { Panel, Group, Separator } from 'react-resizable-panels'
 import { useDiff } from '@/api/hooks'
 import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -165,13 +166,20 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     diffFilePanelOpen: filePanelOpen,
     diffSplitView: splitView,
     diffFilesCollapsedByDefault,
+    diffFilePanelSize: storedFilePanelSize,
     setDiffFilePanelOpen: setFilePanelOpen,
     setDiffSplitView: setSplitView,
     setDiffFilesCollapsedByDefault,
+    setDiffFilePanelSize: setFilePanelSize,
   } = useSettingsStore()
+
+  // Ensure panel size is within valid bounds
+  const filePanelSize = Math.max(10, Math.min(40, storedFilePanelSize || 20))
 
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
+  const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
+  const filePanelRef = useRef<HTMLDivElement | null>(null)
   const selectedFileIndexRef = useRef<number | null>(null)
   const fileRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -190,6 +198,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
       }
     }
   }, [diff, diffFilesCollapsedByDefault])
+
+  // Measure initial file panel width
+  useEffect(() => {
+    if (filePanelRef.current) {
+      setFilePanelWidthPx(filePanelRef.current.offsetWidth)
+    }
+  }, [filePanelOpen])
 
   const toggleFileCollapsed = useCallback((index: number) => {
     setCollapsedFiles(prev => {
@@ -391,36 +406,100 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
       </div>
 
       {/* Main content with optional file panel */}
-      <div className="flex-1 min-h-0 flex">
-        {/* File list panel */}
-        {filePanelOpen && (
-          <ScrollArea className="w-56 shrink-0 border-r border-gray-200 bg-gray-50">
-            <div className="py-2">
-              {diff.files.map((file, index) => {
-                const fileName = file.new_path || file.old_path || 'unknown'
-                const displayName = abbreviateFilename(fileName, 25)
+      {filePanelOpen ? (
+        <Group
+          orientation="horizontal"
+          style={{ flex: 1, minHeight: 0 }}
+          onLayoutChanged={(layout) => {
+            // Only update state when drag ends for better performance
+            const newSize = layout['diff-file-list']
+            if (newSize !== undefined) {
+              setFilePanelSize(newSize)
+            }
+            // Measure actual pixel width after layout settles
+            requestAnimationFrame(() => {
+              if (filePanelRef.current) {
+                setFilePanelWidthPx(filePanelRef.current.offsetWidth)
+              }
+            })
+          }}
+        >
+          {/* File list panel */}
+          <Panel
+            id="diff-file-list"
+            defaultSize={`${filePanelSize}%`}
+            minSize="10%"
+            maxSize="40%"
+          >
+            <ScrollArea className="h-full border-r border-gray-200 bg-gray-50" ref={filePanelRef}>
+              <div className="py-2">
+                {diff.files.map((file, index) => {
+                  const fileName = file.new_path || file.old_path || 'unknown'
+                  // Calculate max chars: panel width minus padding (24px), icon (16px), gap (8px)
+                  // Divide by ~7.2px per character for text-xs monospace font
+                  const maxChars = Math.max(15, Math.floor((filePanelWidthPx - 48) / 7.2))
+                  const displayName = abbreviateFilename(fileName, maxChars)
 
-                return (
-                  <button
-                    key={index}
-                    onClick={() => scrollToFile(index)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-100 transition-colors",
-                      selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200"
-                    )}
-                    title={fileName}
-                  >
-                    {getStatusIcon(file.status)}
-                    <span className="text-xs font-mono truncate">{displayName}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        )}
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => scrollToFile(index)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-100 transition-colors",
+                        selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200"
+                      )}
+                      title={fileName}
+                    >
+                      {getStatusIcon(file.status)}
+                      <span className="text-xs font-mono truncate">{displayName}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          </Panel>
 
-        {/* Scrollable diff content */}
-        <ScrollArea className="flex-1" viewportRef={scrollContainerRef}>
+          <Separator
+            id="diff-panel-resize"
+            className="resize-handle w-2"
+            style={{ cursor: 'col-resize' }}
+          />
+
+          {/* Scrollable diff content */}
+          <Panel id="diff-content" defaultSize={`${100 - filePanelSize}%`} minSize="30%">
+            <ScrollArea className="h-full" viewportRef={scrollContainerRef}>
+                <div className="p-4 space-y-6">
+                  {diff.files.map((file, index) => (
+                    <div
+                      key={index}
+                      ref={(el) => { fileRefs.current[index] = el }}
+                      data-file-index={index}
+                      className={cn(
+                        "border border-gray-200 rounded-lg overflow-hidden",
+                        selectedFileIndex === index && "ring-2 ring-blue-400"
+                      )}
+                    >
+                      <FileDiffContent
+                        file={file}
+                        splitView={splitView}
+                        collapsed={collapsedFiles.has(index)}
+                        index={index}
+                        onToggleCollapse={toggleFileCollapsed}
+                      />
+                    </div>
+                  ))}
+
+                  {diff.files.length === 0 && (
+                    <div className="flex items-center justify-center py-8 text-gray-500">
+                      No changes in this diff
+                    </div>
+                  )}
+                </div>
+            </ScrollArea>
+          </Panel>
+        </Group>
+      ) : (
+        <ScrollArea className="flex-1 min-h-0" viewportRef={scrollContainerRef}>
             <div className="p-4 space-y-6">
               {diff.files.map((file, index) => (
                 <div
@@ -449,7 +528,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
               )}
             </div>
         </ScrollArea>
-      </div>
+      )}
     </div>
   )
 }
