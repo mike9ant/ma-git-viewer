@@ -82,7 +82,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   const scrollToFile = (index: number) => {
     setSelectedFileIndex(index)
-    fileRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    fileRefs.current[index]?.scrollIntoView({ behavior: 'instant', block: 'start' })
   }
 
   if (isLoading) {
