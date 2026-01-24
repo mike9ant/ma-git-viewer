@@ -39,19 +39,34 @@ export function DiffModal() {
               <>
                 Comparing{' '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {formatCompactDateTime(diffCommitFromTimestamp)} {diffCommitFrom.substring(0, 7)}
+                  {diffCommitFrom.substring(0, 7)}
                 </code>
+                {diffCommitFromTimestamp && (
+                  <span className="text-gray-500 text-sm font-normal ml-1">
+                    {formatCompactDateTime(diffCommitFromTimestamp)}
+                  </span>
+                )}
                 {' ... '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {formatCompactDateTime(diffCommitToTimestamp)} {diffCommitTo.substring(0, 7)}
+                  {diffCommitTo.substring(0, 7)}
                 </code>
+                {diffCommitToTimestamp && (
+                  <span className="text-gray-500 text-sm font-normal ml-1">
+                    {formatCompactDateTime(diffCommitToTimestamp)}
+                  </span>
+                )}
               </>
             ) : (
               <>
                 Changes in{' '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                  {formatCompactDateTime(diffCommitToTimestamp)} {diffCommitTo.substring(0, 7)}
+                  {diffCommitTo.substring(0, 7)}
                 </code>
+                {diffCommitToTimestamp && (
+                  <span className="text-gray-500 text-sm font-normal ml-1">
+                    {formatCompactDateTime(diffCommitToTimestamp)}
+                  </span>
+                )}
               </>
             )}
             {currentPath && (

@@ -14,6 +14,26 @@ export function HistoryTab() {
     return data?.commits.find(c => c.oid === oid)?.timestamp ?? null
   }
 
+  const formatTimeDiff = () => {
+    if (selectedCommits.length !== 2) return null
+    const [fromOid, toOid] = selectedCommits
+    const fromTs = getCommitTimestamp(fromOid)
+    const toTs = getCommitTimestamp(toOid)
+    if (fromTs === null || toTs === null) return null
+
+    const diffSeconds = toTs - fromTs
+    const diffHours = diffSeconds / 3600
+    const diffDays = diffHours / 24
+
+    const sign = diffSeconds >= 0 ? '+' : ''
+
+    if (Math.abs(diffHours) < 24) {
+      return `(${sign}${diffHours.toFixed(1)} hr)`
+    } else {
+      return `(${sign}${diffDays.toFixed(1)} days)`
+    }
+  }
+
   const handleCompare = () => {
     if (selectedCommits.length === 2) {
       const [from, to] = selectedCommits
@@ -61,6 +81,9 @@ export function HistoryTab() {
             <>
               <span className="text-sm text-gray-500">
                 {selectedCommits.length} selected
+                {formatTimeDiff() && (
+                  <span className="ml-1">{formatTimeDiff()}</span>
+                )}
               </span>
               <Button variant="outline" size="sm" onClick={clearCommitSelection}>
                 Clear
