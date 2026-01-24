@@ -38,11 +38,14 @@ export const api = {
     return fetchJson<string>(`${API_BASE}/repository/file?${params}`)
   },
 
-  getCommits: (path?: string, limit = 50, offset = 0) => {
+  getCommits: (path?: string, limit = 50, offset = 0, excludeAuthors?: string[]) => {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
     params.set('limit', String(limit))
     params.set('offset', String(offset))
+    if (excludeAuthors && excludeAuthors.length > 0) {
+      params.set('exclude_authors', excludeAuthors.join(','))
+    }
     return fetchJson<CommitListResponse>(`${API_BASE}/repository/commits?${params}`)
   },
 

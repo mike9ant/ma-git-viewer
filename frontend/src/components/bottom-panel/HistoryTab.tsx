@@ -1,13 +1,43 @@
+import { useState, useEffect } from 'react'
 import { useCommits } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { GitCommit, GitCompare } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ContributorFilter } from './ContributorFilter'
+
+const STORAGE_KEY = 'git-viewer-excluded-authors'
+
+function loadExcludedAuthors(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function saveExcludedAuthors(authors: string[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(authors))
+}
 
 export function HistoryTab() {
   const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
-  const { data, isLoading, error } = useCommits(currentPath || undefined)
+  const [filterEnabled, setFilterEnabled] = useState(false)
+  const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => loadExcludedAuthors())
+
+  // Save excluded authors to localStorage whenever they change
+  useEffect(() => {
+    saveExcludedAuthors(excludedAuthors)
+  }, [excludedAuthors])
+
+  const { data, isLoading, error } = useCommits(
+    currentPath || undefined,
+    50,
+    0,
+    filterEnabled && excludedAuthors.length > 0 ? excludedAuthors : undefined
+  )
 
   const getCommitTimestamp = (oid: string) => {
     return data?.commits.find(c => c.oid === oid)?.timestamp ?? null
@@ -69,9 +99,18 @@ export function HistoryTab() {
     <div className="flex flex-col h-full">
       {/* Actions bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <ContributorFilter
+            contributors={data?.contributors || []}
+            excludedAuthors={excludedAuthors}
+            filterEnabled={filterEnabled}
+            onFilterEnabledChange={setFilterEnabled}
+            onExcludedAuthorsChange={setExcludedAuthors}
+          />
           <span className="text-sm text-gray-500">
-            {data?.total} commits
+            {data?.filtered_total !== data?.total && data?.filtered_total !== undefined
+              ? `${data?.filtered_total} of ${data?.total} commits`
+              : `${data?.total} commits`}
             {currentPath && ` affecting ${currentPath}`}
           </span>
         </div>

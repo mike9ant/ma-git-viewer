@@ -22,5 +22,7 @@ pub struct AuthorInfo {
 pub struct CommitListResponse {
     pub commits: Vec<CommitDetail>,
     pub total: usize,
+    pub filtered_total: usize,
     pub has_more: bool,
+    pub contributors: Vec<AuthorInfo>,
 }

@@ -138,15 +138,27 @@ fn commit_touches_path(repo: &Repository, commit: &git2::Commit, path: &str) -> 
 }
 
 impl GitRepository {
-    pub fn get_commits(&self, path: Option<&str>, limit: usize, offset: usize) -> Result<CommitListResponse> {
+    pub fn get_commits(
+        &self,
+        path: Option<&str>,
+        limit: usize,
+        offset: usize,
+        exclude_authors: Option<&[String]>,
+    ) -> Result<CommitListResponse> {
         self.with_repo(|repo| {
             let mut revwalk = repo.revwalk()?;
             revwalk.set_sorting(Sort::TIME)?;
             revwalk.push_head()?;
 
             let mut commits = Vec::new();
-            let mut count = 0;
+            let mut filtered_count = 0;
             let mut total = 0;
+            let mut filtered_total = 0;
+            let mut contributors_map: HashMap<String, String> = HashMap::new();
+
+            let exclude_set: HashSet<&str> = exclude_authors
+                .map(|authors| authors.iter().map(|s| s.as_str()).collect())
+                .unwrap_or_default();
 
             for oid in revwalk {
                 let oid = oid?;
@@ -159,26 +171,41 @@ impl GitRepository {
                     }
                 }
 
+                let author = commit.author();
+                let author_email = author.email().unwrap_or("").to_string();
+                let author_name = author.name().unwrap_or("Unknown").to_string();
+
+                // Track all contributors (before author filter)
+                contributors_map
+                    .entry(author_email.clone())
+                    .or_insert(author_name.clone());
+
                 total += 1;
 
-                if count < offset {
-                    count += 1;
+                // Check if author is excluded
+                if exclude_set.contains(author_email.as_str()) {
+                    continue;
+                }
+
+                filtered_total += 1;
+
+                if filtered_count < offset {
+                    filtered_count += 1;
                     continue;
                 }
 
                 if commits.len() >= limit {
-                    continue; // Keep counting total
+                    continue; // Keep counting filtered_total
                 }
 
-                let author = commit.author();
                 let committer = commit.committer();
 
                 commits.push(CommitDetail {
                     oid: commit.id().to_string(),
                     message: commit.message().unwrap_or("").trim().to_string(),
                     author: AuthorInfo {
-                        name: author.name().unwrap_or("Unknown").to_string(),
-                        email: author.email().unwrap_or("").to_string(),
+                        name: author_name,
+                        email: author_email,
                     },
                     committer: AuthorInfo {
                         name: committer.name().unwrap_or("Unknown").to_string(),
@@ -190,13 +217,21 @@ impl GitRepository {
                     parents: commit.parent_ids().map(|id| id.to_string()).collect(),
                 });
 
-                count += 1;
+                filtered_count += 1;
             }
+
+            // Convert contributors map to vec
+            let contributors: Vec<AuthorInfo> = contributors_map
+                .into_iter()
+                .map(|(email, name)| AuthorInfo { name, email })
+                .collect();
 
             Ok(CommitListResponse {
                 commits,
                 total,
-                has_more: total > offset + limit,
+                filtered_total,
+                has_more: filtered_total > offset + limit,
+                contributors,
             })
         })
     }

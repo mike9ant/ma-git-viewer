@@ -22,6 +22,7 @@ struct CommitsQuery {
     limit: usize,
     #[serde(default)]
     offset: usize,
+    exclude_authors: Option<String>,
 }
 
 fn default_limit() -> usize {
@@ -33,6 +34,13 @@ async fn get_commits(
     Query(query): Query<CommitsQuery>,
 ) -> Result<Json<CommitListResponse>> {
     let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
-    let response = repo.get_commits(query.path.as_deref(), query.limit, query.offset)?;
+    let exclude_authors: Option<Vec<String>> = query.exclude_authors
+        .map(|s| s.split(',').map(|e| e.trim().to_string()).collect());
+    let response = repo.get_commits(
+        query.path.as_deref(),
+        query.limit,
+        query.offset,
+        exclude_authors.as_deref(),
+    )?;
     Ok(Json(response))
 }

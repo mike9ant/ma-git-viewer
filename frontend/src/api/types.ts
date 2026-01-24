@@ -67,7 +67,9 @@ export interface CommitDetail {
 export interface CommitListResponse {
   commits: CommitDetail[]
   total: number
+  filtered_total: number
   has_more: boolean
+  contributors: AuthorInfo[]
 }
 
 export interface DiffResponse {

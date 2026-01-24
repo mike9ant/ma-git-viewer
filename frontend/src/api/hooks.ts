@@ -31,10 +31,10 @@ export function useFileContent(path: string | null) {
   })
 }
 
-export function useCommits(path?: string, limit = 50, offset = 0) {
+export function useCommits(path?: string, limit = 50, offset = 0, excludeAuthors?: string[]) {
   return useQuery({
-    queryKey: ['commits', path, limit, offset],
-    queryFn: () => api.getCommits(path, limit, offset),
+    queryKey: ['commits', path, limit, offset, excludeAuthors],
+    queryFn: () => api.getCommits(path, limit, offset, excludeAuthors),
   })
 }
 
