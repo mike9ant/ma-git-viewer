@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, memo } from 'react'
+import { useState, useRef, useEffect, memo, useCallback } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { useDiff } from '@/api/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
 
@@ -69,17 +69,31 @@ function getStatusLabel(status: FileDiff['status']) {
 // Memoized component to prevent re-rendering heavy ReactDiffViewer when selection changes
 const FileDiffContent = memo(function FileDiffContent({
   file,
-  splitView
+  splitView,
+  collapsed,
+  index,
+  onToggleCollapse
 }: {
   file: FileDiff
   splitView: boolean
+  collapsed: boolean
+  index: number
+  onToggleCollapse: (index: number) => void
 }) {
   const fileName = file.new_path || file.old_path || 'unknown'
 
   return (
     <>
       {/* File header */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+      <button
+        onClick={() => onToggleCollapse(index)}
+        className="w-full flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer text-left"
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
+        )}
         {getStatusIcon(file.status)}
         <span className="text-sm font-medium">{fileName}</span>
         {file.old_path && file.new_path && file.old_path !== file.new_path && (
@@ -98,46 +112,48 @@ const FileDiffContent = memo(function FileDiffContent({
         >
           {getStatusLabel(file.status)}
         </span>
-      </div>
+      </button>
 
       {/* Diff content */}
-      {file.is_binary ? (
-        <div className="p-4 text-sm text-gray-500">
-          Binary file not shown
-        </div>
-      ) : file.old_content !== undefined || file.new_content !== undefined ? (
-        <div className="text-xs">
-          <ReactDiffViewer
-            oldValue={file.old_content || ''}
-            newValue={file.new_content || ''}
-            splitView={splitView}
-            compareMethod={DiffMethod.LINES}
-            useDarkTheme={false}
-            styles={{
-              variables: {
-                light: {
-                  diffViewerBackground: 'transparent',
-                  addedBackground: '#e6ffec',
-                  addedColor: '#24292f',
-                  removedBackground: '#ffebe9',
-                  removedColor: '#24292f',
-                  wordAddedBackground: '#abf2bc',
-                  wordRemovedBackground: '#ff818266',
-                  addedGutterBackground: '#ccffd8',
-                  removedGutterBackground: '#ffd7d5',
-                  gutterBackground: '#f6f8fa',
-                  gutterBackgroundDark: '#f0f1f3',
-                  highlightBackground: '#fffbdd',
-                  highlightGutterBackground: '#fff5b1',
+      {!collapsed && (
+        file.is_binary ? (
+          <div className="p-4 text-sm text-gray-500">
+            Binary file not shown
+          </div>
+        ) : file.old_content !== undefined || file.new_content !== undefined ? (
+          <div className="text-xs">
+            <ReactDiffViewer
+              oldValue={file.old_content || ''}
+              newValue={file.new_content || ''}
+              splitView={splitView}
+              compareMethod={DiffMethod.LINES}
+              useDarkTheme={false}
+              styles={{
+                variables: {
+                  light: {
+                    diffViewerBackground: 'transparent',
+                    addedBackground: '#e6ffec',
+                    addedColor: '#24292f',
+                    removedBackground: '#ffebe9',
+                    removedColor: '#24292f',
+                    wordAddedBackground: '#abf2bc',
+                    wordRemovedBackground: '#ff818266',
+                    addedGutterBackground: '#ccffd8',
+                    removedGutterBackground: '#ffd7d5',
+                    gutterBackground: '#f6f8fa',
+                    gutterBackgroundDark: '#f0f1f3',
+                    highlightBackground: '#fffbdd',
+                    highlightGutterBackground: '#fff5b1',
+                  },
                 },
-              },
-            }}
-          />
-        </div>
-      ) : (
-        <div className="p-4 text-sm text-gray-500">
-          No content available
-        </div>
+              }}
+            />
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-gray-500">
+            No content available
+          </div>
+        )
       )}
     </>
   )
@@ -147,6 +163,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [splitView, setSplitView] = useState(false)
   const [filePanelOpen, setFilePanelOpen] = useState(true)
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const selectedFileIndexRef = useRef<number | null>(null)
   const fileRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -154,6 +171,29 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const isUserScrollingRef = useRef(true)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path)
+
+  const toggleFileCollapsed = useCallback((index: number) => {
+    setCollapsedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }, [])
+
+  const allCollapsed = diff ? collapsedFiles.size === diff.files.length : false
+
+  const toggleAllCollapsed = () => {
+    if (!diff) return
+    if (allCollapsed) {
+      setCollapsedFiles(new Set())
+    } else {
+      setCollapsedFiles(new Set(diff.files.map((_, i) => i)))
+    }
+  }
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -295,6 +335,20 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
         </span>
         <div className="ml-auto flex items-center gap-1">
           <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleAllCollapsed}
+            className="h-7 px-2"
+            title={allCollapsed ? "Expand all files" : "Collapse all files"}
+          >
+            {allCollapsed ? (
+              <ChevronsUpDown className="h-4 w-4" />
+            ) : (
+              <ChevronsDownUp className="h-4 w-4" />
+            )}
+          </Button>
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <Button
             variant={splitView ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setSplitView(true)}
@@ -357,7 +411,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                     selectedFileIndex === index && "ring-2 ring-blue-400"
                   )}
                 >
-                  <FileDiffContent file={file} splitView={splitView} />
+                  <FileDiffContent
+                    file={file}
+                    splitView={splitView}
+                    collapsed={collapsedFiles.has(index)}
+                    index={index}
+                    onToggleCollapse={toggleFileCollapsed}
+                  />
                 </div>
               ))}
 
