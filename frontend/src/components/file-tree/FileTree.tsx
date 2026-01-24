@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Folder, FolderOpen, GitBranch } from 'lucide-react'
+import { ChevronRight, ChevronDown, Folder, FolderOpen, GitBranch, File, FolderTree } from 'lucide-react'
 import { useFullTree } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { FullTreeEntry } from '@/api/types'
 
@@ -11,26 +13,33 @@ interface TreeNodeProps {
   level: number
   expandedPaths: Set<string>
   toggleExpand: (path: string) => void
+  showFiles: boolean
 }
 
-function TreeNode({ entry, level, expandedPaths, toggleExpand }: TreeNodeProps) {
+function TreeNode({ entry, level, expandedPaths, toggleExpand, showFiles }: TreeNodeProps) {
   const { currentPath, setCurrentPath } = useSelectionStore()
   const isExpanded = expandedPaths.has(entry.path)
   const isDirectory = entry.entry_type === 'directory'
   const isSelected = currentPath === entry.path
 
-  // Only show directories
-  if (!isDirectory) return null
+  // Only show files if showFiles is enabled
+  if (!isDirectory && !showFiles) return null
 
-  // Filter children to only include directories
+  // Filter children based on showFiles setting
   const directoryChildren = entry.children?.filter(child => child.entry_type === 'directory')
+  const fileChildren = showFiles ? entry.children?.filter(child => child.entry_type === 'file') : []
+  const visibleChildren = [...(directoryChildren || []), ...(fileChildren || [])]
   const hasSubfolders = directoryChildren && directoryChildren.length > 0
+  const hasVisibleChildren = visibleChildren.length > 0
+  const canExpand = isDirectory && hasVisibleChildren
 
   const handleClick = () => {
-    if (hasSubfolders) {
+    if (canExpand) {
       toggleExpand(entry.path)
     }
-    setCurrentPath(entry.path)
+    if (isDirectory) {
+      setCurrentPath(entry.path)
+    }
   }
 
   return (
@@ -43,31 +52,40 @@ function TreeNode({ entry, level, expandedPaths, toggleExpand }: TreeNodeProps) 
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}
       >
-        {hasSubfolders ? (
-          isExpanded ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
+        {isDirectory ? (
+          canExpand ? (
+            isExpanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />
+            )
           ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />
+            <span className="w-4 shrink-0" />
           )
         ) : (
           <span className="w-4 shrink-0" />
         )}
-        {isExpanded && hasSubfolders ? (
-          <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+        {isDirectory ? (
+          isExpanded && hasVisibleChildren ? (
+            <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+          ) : (
+            <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+          )
         ) : (
-          <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+          <File className="h-4 w-4 shrink-0 text-gray-500" />
         )}
         <span className="truncate">{entry.name}</span>
       </div>
-      {isExpanded && hasSubfolders && (
+      {isExpanded && hasVisibleChildren && (
         <div>
-          {directoryChildren.map((child) => (
+          {visibleChildren.map((child) => (
             <TreeNode
               key={child.path}
               entry={child}
               level={level + 1}
               expandedPaths={expandedPaths}
               toggleExpand={toggleExpand}
+              showFiles={showFiles}
             />
           ))}
         </div>
@@ -80,6 +98,7 @@ export function FileTree() {
   const { data: tree, isLoading, error } = useFullTree()
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const { setCurrentPath } = useSelectionStore()
+  const { fileTreeShowFiles, setFileTreeShowFiles } = useSettingsStore()
 
   const toggleExpand = (path: string) => {
     setExpandedPaths((prev) => {
@@ -121,15 +140,28 @@ export function FileTree() {
           onClick={handleRootClick}
         >
           <GitBranch className="h-4 w-4 text-gray-500" />
-          <span>Repository Root</span>
+          <span className="flex-1">Repository Root</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={(e) => {
+              e.stopPropagation()
+              setFileTreeShowFiles(!fileTreeShowFiles)
+            }}
+            title={fileTreeShowFiles ? "Hide files" : "Show files"}
+          >
+            <FolderTree className={cn("h-4 w-4", fileTreeShowFiles ? "text-blue-500" : "text-gray-400")} />
+          </Button>
         </div>
-        {tree?.filter(entry => entry.entry_type === 'directory').map((entry) => (
+        {tree?.filter(entry => entry.entry_type === 'directory' || fileTreeShowFiles).map((entry) => (
           <TreeNode
             key={entry.path}
             entry={entry}
             level={0}
             expandedPaths={expandedPaths}
             toggleExpand={toggleExpand}
+            showFiles={fileTreeShowFiles}
           />
         ))}
       </div>
