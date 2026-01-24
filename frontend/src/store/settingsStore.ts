@@ -7,6 +7,7 @@ interface SettingsState {
   diffSplitView: boolean
   diffFilesCollapsedByDefault: boolean
   diffFilePanelSize: number
+  diffCompactMode: boolean
 
   // Main layout settings
   fileTreePanelSize: number
@@ -22,6 +23,7 @@ interface SettingsState {
   setDiffSplitView: (split: boolean) => void
   setDiffFilesCollapsedByDefault: (collapsed: boolean) => void
   setDiffFilePanelSize: (size: number) => void
+  setDiffCompactMode: (compact: boolean) => void
   setFileTreePanelSize: (size: number) => void
   setFileTreeShowFiles: (show: boolean) => void
   setCompactMode: (compact: boolean) => void
@@ -35,6 +37,7 @@ export const useSettingsStore = create<SettingsState>()(
       diffSplitView: false,
       diffFilesCollapsedByDefault: false,
       diffFilePanelSize: 20,
+      diffCompactMode: false,
       fileTreePanelSize: 25,
       fileTreeShowFiles: false,
       compactMode: false,
@@ -44,6 +47,7 @@ export const useSettingsStore = create<SettingsState>()(
       setDiffSplitView: (split) => set({ diffSplitView: split }),
       setDiffFilesCollapsedByDefault: (collapsed) => set({ diffFilesCollapsedByDefault: collapsed }),
       setDiffFilePanelSize: (size) => set({ diffFilePanelSize: size }),
+      setDiffCompactMode: (compact) => set({ diffCompactMode: compact }),
       setFileTreePanelSize: (size) => set({ fileTreePanelSize: size }),
       setFileTreeShowFiles: (show) => set({ fileTreeShowFiles: show }),
       setCompactMode: (compact) => set({ compactMode: compact }),

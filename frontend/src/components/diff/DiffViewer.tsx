@@ -5,7 +5,7 @@ import { useDiff } from '@/api/hooks'
 import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
 
@@ -73,12 +73,14 @@ const FileDiffContent = memo(function FileDiffContent({
   file,
   splitView,
   collapsed,
+  compact,
   index,
   onToggleCollapse
 }: {
   file: FileDiff
   splitView: boolean
   collapsed: boolean
+  compact: boolean
   index: number
   onToggleCollapse: (index: number) => void
 }) {
@@ -89,23 +91,27 @@ const FileDiffContent = memo(function FileDiffContent({
       {/* File header */}
       <button
         onClick={() => onToggleCollapse(index)}
-        className="w-full flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer text-left"
+        className={cn(
+          "w-full flex items-center gap-2 px-4 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer text-left",
+          compact ? "py-1" : "py-2"
+        )}
       >
         {collapsed ? (
-          <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronRight className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         ) : (
-          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronDown className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
         {getStatusIcon(file.status)}
-        <span className="text-sm font-medium">{fileName}</span>
+        <span className={cn("font-medium", compact ? "text-xs" : "text-sm")}>{fileName}</span>
         {file.old_path && file.new_path && file.old_path !== file.new_path && (
-          <span className="text-xs text-gray-500">
+          <span className={cn("text-gray-500", compact ? "text-[10px]" : "text-xs")}>
             (from {file.old_path})
           </span>
         )}
         <span
           className={cn(
-            "ml-auto px-2 py-0.5 text-xs rounded",
+            "ml-auto rounded",
+            compact ? "px-1.5 py-0 text-[10px]" : "px-2 py-0.5 text-xs",
             file.status === 'added' && "bg-green-100 text-green-700",
             file.status === 'deleted' && "bg-red-100 text-red-700",
             file.status === 'modified' && "bg-yellow-100 text-yellow-700",
@@ -119,11 +125,11 @@ const FileDiffContent = memo(function FileDiffContent({
       {/* Diff content */}
       {!collapsed && (
         file.is_binary ? (
-          <div className="p-4 text-sm text-gray-500">
+          <div className={cn("text-gray-500", compact ? "p-2 text-xs" : "p-4 text-sm")}>
             Binary file not shown
           </div>
         ) : file.old_content !== undefined || file.new_content !== undefined ? (
-          <div className="text-xs">
+          <div className={compact ? "text-[11px]" : "text-xs"}>
             <ReactDiffViewer
               oldValue={file.old_content || ''}
               newValue={file.new_content || ''}
@@ -148,11 +154,21 @@ const FileDiffContent = memo(function FileDiffContent({
                     highlightGutterBackground: '#fff5b1',
                   },
                 },
+                // Compact mode: override the default 25px line-height
+                diffContainer: compact ? {
+                  '& pre': {
+                    lineHeight: '18px !important',
+                  },
+                } : undefined,
+                gutter: compact ? {
+                  padding: '0 5px',
+                  minWidth: '30px',
+                } : undefined,
               }}
             />
           </div>
         ) : (
-          <div className="p-4 text-sm text-gray-500">
+          <div className={cn("text-gray-500", compact ? "p-2 text-xs" : "p-4 text-sm")}>
             No content available
           </div>
         )
@@ -167,10 +183,12 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     diffSplitView: splitView,
     diffFilesCollapsedByDefault,
     diffFilePanelSize: storedFilePanelSize,
+    diffCompactMode: compactMode,
     setDiffFilePanelOpen: setFilePanelOpen,
     setDiffSplitView: setSplitView,
     setDiffFilesCollapsedByDefault,
     setDiffFilePanelSize: setFilePanelSize,
+    setDiffCompactMode: setCompactMode,
   } = useSettingsStore()
 
   // Ensure panel size is within valid bounds
@@ -402,6 +420,20 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
           >
             <Rows2 className="h-4 w-4" />
           </Button>
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <Button
+            variant={compactMode ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setCompactMode(!compactMode)}
+            className="h-7 px-2"
+            title={compactMode ? "Comfortable view" : "Compact view"}
+          >
+            {compactMode ? (
+              <Rows4 className="h-4 w-4" />
+            ) : (
+              <Rows3 className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </div>
 
@@ -483,6 +515,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                         file={file}
                         splitView={splitView}
                         collapsed={collapsedFiles.has(index)}
+                        compact={compactMode}
                         index={index}
                         onToggleCollapse={toggleFileCollapsed}
                       />
@@ -515,6 +548,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                     file={file}
                     splitView={splitView}
                     collapsed={collapsedFiles.has(index)}
+                    compact={compactMode}
                     index={index}
                     onToggleCollapse={toggleFileCollapsed}
                   />
