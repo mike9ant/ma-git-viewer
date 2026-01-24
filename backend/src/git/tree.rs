@@ -46,12 +46,33 @@ impl GitRepository {
                     _ => continue,
                 };
 
-                let size = if entry_type == EntryType::File {
-                    entry.to_object(repo).ok().and_then(|obj| {
+                let (size, file_count, directory_count) = if entry_type == EntryType::File {
+                    let file_size = entry.to_object(repo).ok().and_then(|obj| {
                         obj.as_blob().map(|b| b.size() as u64)
-                    })
+                    });
+                    (file_size, None, None)
+                } else if entry_type == EntryType::Directory {
+                    // Count immediate children for directories
+                    let counts = entry.to_object(repo).ok().and_then(|obj| {
+                        obj.as_tree().map(|subtree| {
+                            let mut files = 0u32;
+                            let mut dirs = 0u32;
+                            for child in subtree.iter() {
+                                match child.kind() {
+                                    Some(ObjectType::Blob) => files += 1,
+                                    Some(ObjectType::Tree) => dirs += 1,
+                                    _ => {}
+                                }
+                            }
+                            (files, dirs)
+                        })
+                    });
+                    match counts {
+                        Some((f, d)) => (None, Some(f), Some(d)),
+                        None => (None, None, None),
+                    }
                 } else {
-                    None
+                    (None, None, None)
                 };
 
                 entries.push(TreeEntry {
@@ -59,6 +80,8 @@ impl GitRepository {
                     path: entry_path,
                     entry_type,
                     size,
+                    file_count,
+                    directory_count,
                     last_commit: None,
                 });
             }

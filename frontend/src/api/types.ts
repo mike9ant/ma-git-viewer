@@ -11,6 +11,8 @@ export interface TreeEntry {
   path: string
   entry_type: 'file' | 'directory' | 'symlink' | 'submodule'
   size?: number
+  file_count?: number
+  directory_count?: number
   last_commit?: CommitInfo
 }
 

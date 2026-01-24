@@ -1,10 +1,36 @@
 import { useMemo } from 'react'
-import { Folder, File, ArrowLeft } from 'lucide-react'
+import { Folder, File, ArrowLeft, FolderIcon, FileIcon } from 'lucide-react'
 import { useTree } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatBytes } from '@/lib/utils'
 import type { TreeEntry } from '@/api/types'
+
+function formatFolderContents(fileCount?: number, directoryCount?: number): React.ReactNode {
+  const files = fileCount ?? 0
+  const dirs = directoryCount ?? 0
+
+  if (files === 0 && dirs === 0) {
+    return <span className="text-gray-400">Empty</span>
+  }
+
+  return (
+    <span className="flex items-center justify-end gap-2">
+      {dirs > 0 && (
+        <span className="flex items-center gap-0.5">
+          {dirs}
+          <FolderIcon className="h-3 w-3" />
+        </span>
+      )}
+      {files > 0 && (
+        <span className="flex items-center gap-0.5">
+          {files}
+          <FileIcon className="h-3 w-3" />
+        </span>
+      )}
+    </span>
+  )
+}
 
 interface FileRowProps {
   entry: TreeEntry
@@ -42,7 +68,9 @@ function FileRow({ entry, onDoubleClick, onClick, isSelected }: FileRowProps) {
         {entry.last_commit?.relative_time || '-'}
       </td>
       <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap text-right">
-        {entry.size !== undefined ? formatBytes(entry.size) : '-'}
+        {isDirectory
+          ? formatFolderContents(entry.file_count, entry.directory_count)
+          : entry.size !== undefined ? formatBytes(entry.size) : '-'}
       </td>
     </tr>
   )

@@ -29,7 +29,6 @@ function TreeNode({ entry, level, expandedPaths, toggleExpand, showFiles }: Tree
   const directoryChildren = entry.children?.filter(child => child.entry_type === 'directory')
   const fileChildren = showFiles ? entry.children?.filter(child => child.entry_type === 'file') : []
   const visibleChildren = [...(directoryChildren || []), ...(fileChildren || [])]
-  const hasSubfolders = directoryChildren && directoryChildren.length > 0
   const hasVisibleChildren = visibleChildren.length > 0
   const canExpand = isDirectory && hasVisibleChildren
 

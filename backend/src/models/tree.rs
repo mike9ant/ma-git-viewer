@@ -6,6 +6,8 @@ pub struct TreeEntry {
     pub path: String,
     pub entry_type: EntryType,
     pub size: Option<u64>,
+    pub file_count: Option<u32>,
+    pub directory_count: Option<u32>,
     pub last_commit: Option<CommitInfo>,
 }
 
