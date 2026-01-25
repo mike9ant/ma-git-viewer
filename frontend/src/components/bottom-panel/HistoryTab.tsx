@@ -25,8 +25,7 @@ function saveExcludedAuthors(authors: string[]) {
 
 export function HistoryTab() {
   const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
-  const { compactMode } = useSettingsStore()
-  const [filterEnabled, setFilterEnabled] = useState(false)
+  const { compactMode, contributorFilterEnabled, setContributorFilterEnabled } = useSettingsStore()
   const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => loadExcludedAuthors())
 
   // Save excluded authors to localStorage whenever they change
@@ -38,7 +37,7 @@ export function HistoryTab() {
     currentPath || undefined,
     50,
     0,
-    filterEnabled && excludedAuthors.length > 0 ? excludedAuthors : undefined
+    contributorFilterEnabled && excludedAuthors.length > 0 ? excludedAuthors : undefined
   )
 
   const getCommitTimestamp = (oid: string) => {
@@ -105,8 +104,8 @@ export function HistoryTab() {
           <ContributorFilter
             contributors={data?.contributors || []}
             excludedAuthors={excludedAuthors}
-            filterEnabled={filterEnabled}
-            onFilterEnabledChange={setFilterEnabled}
+            filterEnabled={contributorFilterEnabled}
+            onFilterEnabledChange={setContributorFilterEnabled}
             onExcludedAuthorsChange={setExcludedAuthors}
           />
           <span className="text-sm text-gray-500">

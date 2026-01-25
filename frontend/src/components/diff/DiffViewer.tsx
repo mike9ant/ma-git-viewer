@@ -10,7 +10,7 @@ import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose,
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
 
-const DIFF_EXCLUDED_AUTHORS_KEY = 'git-viewer-diff-excluded-authors'
+const EXCLUDED_AUTHORS_KEY = 'git-viewer-excluded-authors'
 
 function formatRelativeTime(timestamp: number): string {
   const now = Math.floor(Date.now() / 1000)
@@ -223,12 +223,14 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     diffFilePanelSize: storedFilePanelSize,
     diffCompactMode: compactMode,
     diffFilterMode: filterMode,
+    contributorFilterEnabled: filterEnabled,
     setDiffFilePanelOpen: setFilePanelOpen,
     setDiffSplitView: setSplitView,
     setDiffFilesCollapsedByDefault,
     setDiffFilePanelSize: setFilePanelSize,
     setDiffCompactMode: setCompactMode,
     setDiffFilterMode: setFilterMode,
+    setContributorFilterEnabled: setFilterEnabled,
   } = useSettingsStore()
 
   // Ensure panel size is within valid bounds
@@ -237,10 +239,9 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
-  const [filterEnabled, setFilterEnabled] = useState(false)
   const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem(DIFF_EXCLUDED_AUTHORS_KEY)
+      const stored = localStorage.getItem(EXCLUDED_AUTHORS_KEY)
       return stored ? JSON.parse(stored) : []
     } catch {
       return []
@@ -262,7 +263,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   // Save excluded authors to localStorage
   useEffect(() => {
-    localStorage.setItem(DIFF_EXCLUDED_AUTHORS_KEY, JSON.stringify(excludedAuthors))
+    localStorage.setItem(EXCLUDED_AUTHORS_KEY, JSON.stringify(excludedAuthors))
   }, [excludedAuthors])
 
   // Compute processed files for gray mode (filtering done client-side)

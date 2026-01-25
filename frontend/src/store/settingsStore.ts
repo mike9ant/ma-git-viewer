@@ -19,6 +19,9 @@ interface SettingsState {
   // Display density settings
   compactMode: boolean
 
+  // Contributor filter (shared between history and diff)
+  contributorFilterEnabled: boolean
+
   // Setters
   setDiffFilePanelOpen: (open: boolean) => void
   setDiffSplitView: (split: boolean) => void
@@ -29,6 +32,7 @@ interface SettingsState {
   setFileTreePanelSize: (size: number) => void
   setFileTreeShowFiles: (show: boolean) => void
   setCompactMode: (compact: boolean) => void
+  setContributorFilterEnabled: (enabled: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -44,6 +48,7 @@ export const useSettingsStore = create<SettingsState>()(
       fileTreePanelSize: 25,
       fileTreeShowFiles: false,
       compactMode: false,
+      contributorFilterEnabled: false,
 
       // Setters
       setDiffFilePanelOpen: (open) => set({ diffFilePanelOpen: open }),
@@ -55,6 +60,7 @@ export const useSettingsStore = create<SettingsState>()(
       setFileTreePanelSize: (size) => set({ fileTreePanelSize: size }),
       setFileTreeShowFiles: (show) => set({ fileTreeShowFiles: show }),
       setCompactMode: (compact) => set({ compactMode: compact }),
+      setContributorFilterEnabled: (enabled) => set({ contributorFilterEnabled: enabled }),
     }),
     {
       name: 'git-viewer-settings',
