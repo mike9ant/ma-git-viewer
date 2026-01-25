@@ -104,7 +104,6 @@ const FileDiffContent = memo(function FileDiffContent({
 }) {
   const fileName = file.new_path || file.old_path || 'unknown'
   const authors = file.authors || []
-  const biggestAuthor = authors.length > 0 ? authors[0] : null
 
   // Build tooltip with all authors
   const authorTooltip = authors.length > 0
@@ -133,17 +132,22 @@ const FileDiffContent = memo(function FileDiffContent({
             (from {file.old_path})
           </span>
         )}
-        {biggestAuthor && (
+        {authors.length > 0 && (
           <span
             className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-purple-50 border border-purple-200 text-purple-700"
             title={authorTooltip}
           >
             <User className="h-3 w-3" />
-            {biggestAuthor.name.split(' ')[0]}
+            {authors.slice(0, 2).map((a, i) => (
+              <span key={a.email}>
+                {a.name.split(' ')[0]} ({a.commit_count} {a.commit_count === 1 ? 'commit' : 'commits'})
+                {i < Math.min(authors.length, 2) - 1 && ','}
+              </span>
+            ))}
+            {authors.length > 2 && <span className="text-purple-400">+{authors.length - 2}</span>}
             <span className="text-purple-500">
-              ({biggestAuthor.commit_count} {biggestAuthor.commit_count === 1 ? 'commit' : 'commits'}) · {formatRelativeTime(biggestAuthor.last_commit_timestamp)}
+              · {formatRelativeTime(Math.max(...authors.map(a => a.last_commit_timestamp)))}
             </span>
-            {authors.length > 1 && <span className="text-purple-400">+{authors.length - 1}</span>}
           </span>
         )}
         <span
