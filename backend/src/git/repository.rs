@@ -102,7 +102,7 @@ impl GitRepository {
         f(&repo)
     }
 
-    /// List all local branches in the repository
+    /// List all local and remote branches in the repository
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
         let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
 
@@ -115,8 +115,10 @@ impl GitRepository {
             }
         });
 
-        let mut branches = Vec::new();
+        let mut local_branches = Vec::new();
+        let mut remote_branches = Vec::new();
 
+        // List local branches
         for branch_result in repo.branches(Some(git2::BranchType::Local))? {
             let (branch, _) = branch_result?;
             let name = branch.name()?.unwrap_or("").to_string();
@@ -124,21 +126,44 @@ impl GitRepository {
 
             let last_commit = branch.get().peel_to_commit().ok().map(|c| commit_to_info(&c));
 
-            branches.push(BranchInfo {
+            local_branches.push(BranchInfo {
                 name: name.clone(),
                 is_current,
+                is_remote: false,
                 last_commit,
             });
         }
 
-        // Sort: current branch first, then alphabetically
-        branches.sort_by(|a, b| {
+        // List remote branches
+        for branch_result in repo.branches(Some(git2::BranchType::Remote))? {
+            let (branch, _) = branch_result?;
+            let name = branch.name()?.unwrap_or("").to_string();
+
+            let last_commit = branch.get().peel_to_commit().ok().map(|c| commit_to_info(&c));
+
+            remote_branches.push(BranchInfo {
+                name: name.clone(),
+                is_current: false,
+                is_remote: true,
+                last_commit,
+            });
+        }
+
+        // Sort local: current branch first, then alphabetically
+        local_branches.sort_by(|a, b| {
             match (a.is_current, b.is_current) {
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
                 _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
             }
         });
+
+        // Sort remote branches alphabetically
+        remote_branches.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+        // Combine: local first, then remote
+        let mut branches = local_branches;
+        branches.extend(remote_branches);
 
         Ok(branches)
     }
@@ -194,19 +219,105 @@ impl GitRepository {
             )));
         }
 
-        // Set HEAD to the branch
-        repo.set_head(refname)?;
-
         // Checkout the tree to update working directory
+        // We use force() here because we've already verified there are no uncommitted changes above
         let commit = branch.get().peel_to_commit()?;
         let tree = commit.tree()?;
 
         let mut checkout_builder = git2::build::CheckoutBuilder::new();
-        checkout_builder.safe(); // Don't overwrite uncommitted changes
+        checkout_builder.force(); // Force update since we verified no uncommitted changes
 
         repo.checkout_tree(tree.as_object(), Some(&mut checkout_builder))?;
 
+        // Set HEAD to the branch after successful checkout
+        repo.set_head(refname)?;
+
         tracing::info!("Checked out branch: {}", branch_name);
+
+        Ok(())
+    }
+
+    /// Checkout a remote branch by creating a new local tracking branch
+    pub fn checkout_remote_branch(&self, remote_branch: &str, local_name: &str) -> Result<()> {
+        let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+
+        // Check for uncommitted changes before attempting checkout
+        let statuses = repo.statuses(Some(
+            git2::StatusOptions::new()
+                .include_untracked(false)
+                .include_ignored(false)
+        ))?;
+
+        let dirty_files: Vec<String> = statuses
+            .iter()
+            .filter(|s| {
+                let status = s.status();
+                status.intersects(
+                    git2::Status::INDEX_NEW
+                        | git2::Status::INDEX_MODIFIED
+                        | git2::Status::INDEX_DELETED
+                        | git2::Status::INDEX_RENAMED
+                        | git2::Status::INDEX_TYPECHANGE
+                        | git2::Status::WT_MODIFIED
+                        | git2::Status::WT_DELETED
+                        | git2::Status::WT_RENAMED
+                        | git2::Status::WT_TYPECHANGE
+                )
+            })
+            .filter_map(|s| s.path().map(|p| p.to_string()))
+            .take(5)
+            .collect();
+
+        if !dirty_files.is_empty() {
+            let file_list = dirty_files.join(", ");
+            let more = if statuses.len() > 5 {
+                format!(" and {} more", statuses.len() - 5)
+            } else {
+                String::new()
+            };
+            return Err(AppError::CheckoutConflict(format!(
+                "Cannot switch branches: you have uncommitted changes in: {}{}",
+                file_list, more
+            )));
+        }
+
+        // Check if local branch already exists
+        if repo.find_branch(local_name, git2::BranchType::Local).is_ok() {
+            return Err(AppError::InvalidPath(format!(
+                "Local branch '{}' already exists",
+                local_name
+            )));
+        }
+
+        // Find the remote branch
+        let remote_ref = repo.find_branch(remote_branch, git2::BranchType::Remote)
+            .map_err(|_| AppError::PathNotFound(format!("Remote branch not found: {}", remote_branch)))?;
+
+        let commit = remote_ref.get().peel_to_commit()?;
+
+        // Create local branch pointing to the same commit
+        let mut local_branch = repo.branch(local_name, &commit, false)?;
+
+        // Set up tracking
+        local_branch.set_upstream(Some(remote_branch))?;
+
+        // Get the local branch reference name
+        let refname = local_branch.get().name()
+            .ok_or_else(|| AppError::Internal("Invalid branch reference".to_string()))?
+            .to_string();
+
+        // Checkout the tree first, then set HEAD
+        // We use force() because we've already verified there are no uncommitted changes
+        let tree = commit.tree()?;
+        let mut checkout_builder = git2::build::CheckoutBuilder::new();
+        checkout_builder.force();
+
+        repo.checkout_tree(tree.as_object(), Some(&mut checkout_builder))?;
+
+        // Set HEAD to the new local branch after successful checkout
+        repo.set_head(&refname)?;
+
+        tracing::info!("Created and checked out local branch '{}' tracking '{}'", local_name, remote_branch);
 
         Ok(())
     }

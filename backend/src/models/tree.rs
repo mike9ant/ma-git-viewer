@@ -78,5 +78,6 @@ pub struct ContributorInfo {
 pub struct BranchInfo {
     pub name: String,
     pub is_current: bool,
+    pub is_remote: bool,
     pub last_commit: Option<CommitInfo>,
 }

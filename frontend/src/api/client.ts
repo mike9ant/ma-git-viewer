@@ -115,4 +115,17 @@ export const api = {
       throw new Error(error.error || 'Request failed')
     }
   },
+
+  checkoutRemoteBranch: async (remoteBranch: string, localName: string, signal?: AbortSignal): Promise<void> => {
+    const response = await fetch(`${API_BASE}/repository/checkout-remote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remote_branch: remoteBranch, local_name: localName }),
+      signal,
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || 'Request failed')
+    }
+  },
 }

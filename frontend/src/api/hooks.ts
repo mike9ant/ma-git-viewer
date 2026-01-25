@@ -121,3 +121,25 @@ export function useCheckoutBranch() {
     },
   })
 }
+
+export function useCheckoutRemoteBranch() {
+  const queryClient = useQueryClient()
+  const resetSelection = useSelectionStore((state) => state.resetSelection)
+
+  return useMutation({
+    mutationFn: ({ remoteBranch, localName }: { remoteBranch: string; localName: string }) =>
+      api.checkoutRemoteBranch(remoteBranch, localName),
+    onSuccess: () => {
+      resetSelection()
+      // Invalidate all queries since branch change affects everything
+      queryClient.invalidateQueries({ queryKey: ['repository'] })
+      queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['tree'] })
+      queryClient.invalidateQueries({ queryKey: ['fullTree'] })
+      queryClient.invalidateQueries({ queryKey: ['commits'] })
+      queryClient.invalidateQueries({ queryKey: ['file'] })
+      queryClient.invalidateQueries({ queryKey: ['directoryInfo'] })
+      queryClient.invalidateQueries({ queryKey: ['diff'] })
+    },
+  })
+}

@@ -147,5 +147,6 @@ export interface DirectoryListing {
 export interface BranchInfo {
   name: string
   is_current: boolean
+  is_remote: boolean
   last_commit?: CommitInfo
 }
