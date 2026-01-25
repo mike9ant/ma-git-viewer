@@ -428,6 +428,32 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     }, 1000)
   }
 
+  // Calculate stats for shown files only (when filtering)
+  // Must be before early returns to satisfy React hooks rules
+  const isFiltering = filterEnabled && excludedAuthors.length > 0
+  const shownStats = useMemo(() => {
+    if (!isFiltering || processedFiles.length === 0) return null
+
+    let insertions = 0
+    let deletions = 0
+
+    processedFiles.forEach((file, index) => {
+      // Skip grayed out files in gray mode
+      if (filterMode === 'gray' && grayedOutIndices.has(index)) return
+
+      const hunks = file.hunks || []
+      hunks.forEach(hunk => {
+        const lines = hunk.lines || []
+        lines.forEach(line => {
+          if (line.line_type === 'addition') insertions++
+          else if (line.line_type === 'deletion') deletions++
+        })
+      })
+    })
+
+    return { insertions, deletions }
+  }, [isFiltering, processedFiles, filterMode, grayedOutIndices])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500">
@@ -451,7 +477,6 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const displayedFiles = filterEnabled && filterMode === 'hide'
     ? (diff.filtered_files ?? diff.files.length)
     : (filterEnabled && filterMode === 'gray' ? processedFiles.length - grayedOutIndices.size : processedFiles.length)
-  const isFiltering = filterEnabled && excludedAuthors.length > 0
 
   return (
     <div className="h-full flex flex-col">
@@ -470,24 +495,29 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
             <PanelLeft className="h-4 w-4" />
           )}
         </Button>
-        <span className="text-sm">
-          {isFiltering ? (
-            <>
-              <span className="font-medium">{displayedFiles}</span>
-              <span className="text-gray-500"> of {totalFiles}</span> files
-            </>
-          ) : (
-            <>
+        {isFiltering && shownStats && displayedFiles !== totalFiles ? (
+          <span className="text-sm">
+            <span className="font-medium">{displayedFiles}</span> shown
+            {' '}(<span className="text-green-600">+{shownStats.insertions} insertions</span>{' '}
+            <span className="text-red-600">-{shownStats.deletions} deletions</span>)
+            <span className="text-gray-400"> of </span>
+            {totalFiles} files
+            {' '}(<span className="text-green-600">+{diff.stats.insertions}</span>{' '}
+            <span className="text-red-600">-{diff.stats.deletions}</span>)
+          </span>
+        ) : (
+          <>
+            <span className="text-sm">
               <span className="font-medium">{diff.stats.files_changed}</span> files changed
-            </>
-          )}
-        </span>
-        <span className="text-sm text-green-600">
-          +{diff.stats.insertions} insertions
-        </span>
-        <span className="text-sm text-red-600">
-          -{diff.stats.deletions} deletions
-        </span>
+            </span>
+            <span className="text-sm text-green-600">
+              +{diff.stats.insertions} insertions
+            </span>
+            <span className="text-sm text-red-600">
+              -{diff.stats.deletions} deletions
+            </span>
+          </>
+        )}
         <div className="ml-auto flex items-center gap-1">
           {/* Contributor Filter */}
           {diff.contributors && diff.contributors.length > 0 && (
