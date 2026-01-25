@@ -36,7 +36,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { ContributorFilter } from '@/components/bottom-panel/ContributorFilter'
-import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye, GitCommitHorizontal, Loader2 } from 'lucide-react'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye, GitCommitHorizontal, Loader2, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff, BlameLine } from '@/api/types'
 import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
@@ -52,27 +52,6 @@ function formatRelativeTime(timestamp: number): string {
   if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`
   if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`
   return `${Math.floor(diff / 31536000)}y ago`
-}
-
-function abbreviateFilename(path: string, maxLength: number): string {
-  if (path.length <= maxLength) return path
-
-  const filename = path.split('/').pop() || path
-  const dirname = path.slice(0, path.length - filename.length - 1)
-
-  // If filename alone is too long, abbreviate it
-  if (filename.length >= maxLength - 3) {
-    const half = Math.floor((maxLength - 3) / 2)
-    return filename.slice(0, half) + '...' + filename.slice(-half)
-  }
-
-  // Otherwise abbreviate the directory part
-  const availableForDir = maxLength - filename.length - 4 // 4 for "/..."
-  if (availableForDir <= 0) {
-    return '.../' + filename
-  }
-
-  return dirname.slice(0, availableForDir) + '.../' + filename
 }
 
 interface DiffViewerProps {
@@ -112,6 +91,144 @@ function getStatusLabel(status: FileDiff['status']) {
       return status
   }
 }
+
+// Tree node for file tree view
+interface FileTreeNode {
+  name: string                    // Display name (may be compressed path like "app/tools")
+  children: FileTreeNode[]        // Child nodes
+  fileIndex?: number              // Index in processedFiles if this is a file
+  file?: FileDiff                 // File data if this is a leaf
+  isDirectory: boolean
+}
+
+// Build a tree from flat file paths
+function buildFileTree(files: FileDiff[]): FileTreeNode {
+  const root: FileTreeNode = { name: '', children: [], isDirectory: true }
+
+  files.forEach((file, index) => {
+    const path = file.new_path || file.old_path || 'unknown'
+    const parts = path.split('/')
+    let current = root
+
+    // Navigate/create directory nodes
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]
+      let child = current.children.find(c => c.isDirectory && c.name === part)
+      if (!child) {
+        child = { name: part, children: [], isDirectory: true }
+        current.children.push(child)
+      }
+      current = child
+    }
+
+    // Add file node
+    const fileName = parts[parts.length - 1]
+    current.children.push({
+      name: fileName,
+      children: [],
+      fileIndex: index,
+      file,
+      isDirectory: false
+    })
+  })
+
+  // Sort children: directories first, then files, both alphabetically
+  const sortChildren = (node: FileTreeNode) => {
+    node.children.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+    node.children.forEach(sortChildren)
+  }
+  sortChildren(root)
+
+  return root
+}
+
+// Compress single-child directory paths (e.g., app -> tools becomes app/tools)
+function compressTree(node: FileTreeNode): FileTreeNode {
+  // First, recursively compress children
+  const compressedChildren = node.children.map(compressTree)
+
+  // If this is a directory with exactly one child that is also a directory,
+  // merge them into a single node
+  if (node.isDirectory && compressedChildren.length === 1 && compressedChildren[0].isDirectory) {
+    const child = compressedChildren[0]
+    return {
+      name: node.name ? `${node.name}/${child.name}` : child.name,
+      children: child.children,
+      isDirectory: true
+    }
+  }
+
+  return {
+    ...node,
+    children: compressedChildren
+  }
+}
+
+// Recursive tree node component
+const FileTreeNodeComponent = memo(function FileTreeNodeComponent({
+  node,
+  depth,
+  selectedFileIndex,
+  grayedOutIndices,
+  onFileClick
+}: {
+  node: FileTreeNode
+  depth: number
+  selectedFileIndex: number | null
+  grayedOutIndices: Set<number>
+  onFileClick: (index: number) => void
+}) {
+  // Directories are always expanded (as per requirement)
+  if (node.isDirectory) {
+    return (
+      <>
+        {/* Only show directory row if it has a name (not root) */}
+        {node.name && (
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-600"
+            style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          >
+            <FolderOpen className="h-3.5 w-3.5 text-yellow-600 shrink-0" />
+            <span className="font-medium truncate">{node.name}</span>
+          </div>
+        )}
+        {node.children.map((child, i) => (
+          <FileTreeNodeComponent
+            key={child.isDirectory ? `dir-${child.name}-${i}` : `file-${child.fileIndex}`}
+            node={child}
+            depth={node.name ? depth + 1 : depth}
+            selectedFileIndex={selectedFileIndex}
+            grayedOutIndices={grayedOutIndices}
+            onFileClick={onFileClick}
+          />
+        ))}
+      </>
+    )
+  }
+
+  // File leaf node
+  const isSelected = selectedFileIndex === node.fileIndex
+  const isGrayedOut = node.fileIndex !== undefined && grayedOutIndices.has(node.fileIndex)
+
+  return (
+    <button
+      onClick={() => node.fileIndex !== undefined && onFileClick(node.fileIndex)}
+      className={cn(
+        "w-full flex items-center gap-1.5 py-1 text-left hover:bg-gray-100 transition-colors",
+        isSelected && "bg-blue-200 hover:bg-blue-200",
+        isGrayedOut && "opacity-50"
+      )}
+      style={{ paddingLeft: `${depth * 12 + 8}px`, paddingRight: '8px' }}
+      title={node.file ? (node.file.new_path || node.file.old_path) : node.name}
+    >
+      {node.file && getStatusIcon(node.file.status)}
+      <span className="text-xs font-mono truncate">{node.name}</span>
+    </button>
+  )
+})
 
 // Type for blame data passed to the diff content
 interface BlameData {
@@ -461,7 +578,6 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
-  const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
   const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
   const [blameEnabledFiles, setBlameEnabledFiles] = useState<Set<number>>(new Set())
 
@@ -516,6 +632,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     return { processedFiles: files, grayedOutIndices: grayedOut }
   }, [diff, filterEnabled, filterMode, filterState, unfilteredDiff?.contributors])
 
+  // Build file tree with path compression
+  const fileTree = useMemo(() => {
+    if (processedFiles.length === 0) return null
+    const tree = buildFileTree(processedFiles)
+    return compressTree(tree)
+  }, [processedFiles])
+
   // Initialize collapsed state based on settings when diff loads
   useEffect(() => {
     if (diff && !initializedRef.current) {
@@ -525,13 +648,6 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
       }
     }
   }, [diff, diffFilesCollapsedByDefault])
-
-  // Measure initial file panel width
-  useEffect(() => {
-    if (filePanelRef.current) {
-      setFilePanelWidthPx(filePanelRef.current.offsetWidth)
-    }
-  }, [filePanelOpen])
 
   const toggleFileCollapsed = useCallback((index: number) => {
     setCollapsedFiles(prev => {
@@ -853,12 +969,6 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
             if (newSize !== undefined) {
               setFilePanelSize(newSize)
             }
-            // Measure actual pixel width after layout settles
-            requestAnimationFrame(() => {
-              if (filePanelRef.current) {
-                setFilePanelWidthPx(filePanelRef.current.offsetWidth)
-              }
-            })
           }}
         >
           {/* File list panel */}
@@ -869,31 +979,16 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
             maxSize="40%"
           >
             <ScrollArea className="h-full border-r border-gray-200 bg-gray-50" ref={filePanelRef}>
-              <div className="py-2">
-                {processedFiles.map((file, index) => {
-                  const fileName = file.new_path || file.old_path || 'unknown'
-                  // Calculate max chars: panel width minus padding (24px), icon (16px), gap (8px)
-                  // Divide by ~7.2px per character for text-xs monospace font
-                  const maxChars = Math.max(15, Math.floor((filePanelWidthPx - 48) / 7.2))
-                  const displayName = abbreviateFilename(fileName, maxChars)
-                  const isGrayedOut = grayedOutIndices.has(index)
-
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => scrollToFile(index)}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-100 transition-colors",
-                        selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200",
-                        isGrayedOut && "opacity-50"
-                      )}
-                      title={fileName}
-                    >
-                      {getStatusIcon(file.status)}
-                      <span className="text-xs font-mono truncate">{displayName}</span>
-                    </button>
-                  )
-                })}
+              <div className="py-1">
+                {fileTree && (
+                  <FileTreeNodeComponent
+                    node={fileTree}
+                    depth={0}
+                    selectedFileIndex={selectedFileIndex}
+                    grayedOutIndices={grayedOutIndices}
+                    onFileClick={scrollToFile}
+                  />
+                )}
               </div>
             </ScrollArea>
           </Panel>
