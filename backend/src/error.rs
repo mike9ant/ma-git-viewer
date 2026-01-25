@@ -7,6 +7,7 @@
 //! Error mappings:
 //! - `RepoNotFound`, `PathNotFound`, `CommitNotFound` → 404
 //! - `InvalidPath` → 400
+//! - `CheckoutConflict` → 409
 //! - `Git`, `Internal` → 500
 
 use axum::{
@@ -34,6 +35,9 @@ pub enum AppError {
     #[error("Invalid path: {0}")]
     InvalidPath(String),
 
+    #[error("Checkout conflict: {0}")]
+    CheckoutConflict(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -54,6 +58,7 @@ impl IntoResponse for AppError {
             AppError::InvalidPath(path) => {
                 (StatusCode::BAD_REQUEST, format!("Invalid path: {}", path))
             }
+            AppError::CheckoutConflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 

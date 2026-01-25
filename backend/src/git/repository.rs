@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::error::{AppError, Result};
 use crate::git::cache::CommitCache;
-use crate::models::{CommitInfo, RepositoryInfo};
+use crate::models::{BranchInfo, CommitInfo, RepositoryInfo};
 
 pub struct GitRepository {
     pub repo: Mutex<Repository>,
@@ -100,6 +100,115 @@ impl GitRepository {
     {
         let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
         f(&repo)
+    }
+
+    /// List all local branches in the repository
+    pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
+        let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+
+        let head = repo.head().ok();
+        let current_branch = head.as_ref().and_then(|h| {
+            if h.is_branch() {
+                h.shorthand().map(|s| s.to_string())
+            } else {
+                None
+            }
+        });
+
+        let mut branches = Vec::new();
+
+        for branch_result in repo.branches(Some(git2::BranchType::Local))? {
+            let (branch, _) = branch_result?;
+            let name = branch.name()?.unwrap_or("").to_string();
+            let is_current = current_branch.as_ref() == Some(&name);
+
+            let last_commit = branch.get().peel_to_commit().ok().map(|c| commit_to_info(&c));
+
+            branches.push(BranchInfo {
+                name: name.clone(),
+                is_current,
+                last_commit,
+            });
+        }
+
+        // Sort: current branch first, then alphabetically
+        branches.sort_by(|a, b| {
+            match (a.is_current, b.is_current) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            }
+        });
+
+        Ok(branches)
+    }
+
+    /// Checkout a branch by name
+    pub fn checkout_branch(&self, branch_name: &str) -> Result<()> {
+        let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+
+        // Find the branch
+        let branch = repo.find_branch(branch_name, git2::BranchType::Local)
+            .map_err(|_| AppError::PathNotFound(format!("Branch not found: {}", branch_name)))?;
+
+        let refname = branch.get().name()
+            .ok_or_else(|| AppError::Internal("Invalid branch reference".to_string()))?;
+
+        // Check for uncommitted changes before attempting checkout
+        let statuses = repo.statuses(Some(
+            git2::StatusOptions::new()
+                .include_untracked(false)
+                .include_ignored(false)
+        ))?;
+
+        let dirty_files: Vec<String> = statuses
+            .iter()
+            .filter(|s| {
+                let status = s.status();
+                status.intersects(
+                    git2::Status::INDEX_NEW
+                        | git2::Status::INDEX_MODIFIED
+                        | git2::Status::INDEX_DELETED
+                        | git2::Status::INDEX_RENAMED
+                        | git2::Status::INDEX_TYPECHANGE
+                        | git2::Status::WT_MODIFIED
+                        | git2::Status::WT_DELETED
+                        | git2::Status::WT_RENAMED
+                        | git2::Status::WT_TYPECHANGE
+                )
+            })
+            .filter_map(|s| s.path().map(|p| p.to_string()))
+            .take(5) // Limit to first 5 files
+            .collect();
+
+        if !dirty_files.is_empty() {
+            let file_list = dirty_files.join(", ");
+            let more = if statuses.len() > 5 {
+                format!(" and {} more", statuses.len() - 5)
+            } else {
+                String::new()
+            };
+            return Err(AppError::CheckoutConflict(format!(
+                "Cannot switch branches: you have uncommitted changes in: {}{}",
+                file_list, more
+            )));
+        }
+
+        // Set HEAD to the branch
+        repo.set_head(refname)?;
+
+        // Checkout the tree to update working directory
+        let commit = branch.get().peel_to_commit()?;
+        let tree = commit.tree()?;
+
+        let mut checkout_builder = git2::build::CheckoutBuilder::new();
+        checkout_builder.safe(); // Don't overwrite uncommitted changes
+
+        repo.checkout_tree(tree.as_object(), Some(&mut checkout_builder))?;
+
+        tracing::info!("Checked out branch: {}", branch_name);
+
+        Ok(())
     }
 }
 

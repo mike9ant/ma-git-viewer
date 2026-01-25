@@ -73,3 +73,10 @@ pub struct ContributorInfo {
     pub email: String,
     pub commit_count: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_current: bool,
+    pub last_commit: Option<CommitInfo>,
+}

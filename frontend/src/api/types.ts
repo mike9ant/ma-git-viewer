@@ -143,3 +143,9 @@ export interface DirectoryListing {
   parent_path: string | null
   entries: FilesystemEntry[]
 }
+
+export interface BranchInfo {
+  name: string
+  is_current: boolean
+  last_commit?: CommitInfo
+}

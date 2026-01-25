@@ -23,6 +23,7 @@ import { FileList } from '@/components/file-list/FileList'
 import { BottomPanel } from '@/components/bottom-panel/BottomPanel'
 import { DiffModal } from '@/components/diff/DiffModal'
 import { RepoSwitcher } from '@/components/repo-switcher/RepoSwitcher'
+import { BranchSwitcher } from '@/components/branch-switcher/BranchSwitcher'
 import { Button } from '@/components/ui/button'
 import { Rows3, Rows4 } from 'lucide-react'
 
@@ -68,10 +69,14 @@ export function AppLayout() {
         <RepoSwitcher />
         <div className="flex-1">
           <h1 className="text-sm font-semibold">{repo?.name}</h1>
-          <p className="text-xs text-gray-500">
-            {repo?.head_branch && `Branch: ${repo.head_branch}`}
-            {repo?.head_commit && ` - ${repo.head_commit.message.split('\n')[0].substring(0, 50)}`}
-          </p>
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <BranchSwitcher />
+            {repo?.head_commit && (
+              <span className="truncate">
+                - {repo.head_commit.message.split('\n')[0].substring(0, 50)}
+              </span>
+            )}
+          </div>
         </div>
         <Button
           variant={compactMode ? "secondary" : "ghost"}

@@ -16,6 +16,7 @@ import type {
   DiffResponse,
   DirectoryInfo,
   DirectoryListing,
+  BranchInfo,
 } from './types'
 
 const API_BASE = '/api/v1'
@@ -97,5 +98,21 @@ export const api = {
       throw new Error(error.error || 'Request failed')
     }
     return response.json()
+  },
+
+  getBranches: (signal?: AbortSignal) =>
+    fetchJson<BranchInfo[]>(`${API_BASE}/repository/branches`, signal),
+
+  checkoutBranch: async (branch: string, signal?: AbortSignal): Promise<void> => {
+    const response = await fetch(`${API_BASE}/repository/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch }),
+      signal,
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || 'Request failed')
+    }
   },
 }
