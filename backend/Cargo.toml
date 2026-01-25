@@ -1,12 +1,16 @@
 [package]
-name = "git-viewer-backend"
+name = "git-viewer"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "git-viewer"
+path = "src/main.rs"
 
 [dependencies]
 # Web framework
 axum = { version = "0.8", features = ["macros"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "signal"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Git operations
@@ -26,3 +30,10 @@ anyhow = "1"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI and packaging
+clap = { version = "4", features = ["derive"] }
+rust-embed = "8"
+mime_guess = "2"
+open = "5"
+libc = "0.2"
