@@ -9,8 +9,7 @@ import { ContributorFilter } from '@/components/bottom-panel/ContributorFilter'
 import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
-
-const EXCLUDED_AUTHORS_KEY = 'git-viewer-excluded-authors'
+import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
 
 function formatRelativeTime(timestamp: number): string {
   const now = Math.floor(Date.now() / 1000)
@@ -243,14 +242,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
-  const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem(EXCLUDED_AUTHORS_KEY)
-      return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
-  })
+  const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
 
   const filePanelRef = useRef<HTMLDivElement | null>(null)
   const selectedFileIndexRef = useRef<number | null>(null)
@@ -261,14 +253,21 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
 
-  // Determine which authors to exclude based on filter state and mode
-  const effectiveExcludedAuthors = filterEnabled && filterMode === 'hide' ? excludedAuthors : undefined
-  const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path, effectiveExcludedAuthors)
-
-  // Save excluded authors to localStorage
+  // Save filter state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem(EXCLUDED_AUTHORS_KEY, JSON.stringify(excludedAuthors))
-  }, [excludedAuthors])
+    saveAuthorFilter(filterState)
+  }, [filterState])
+
+  // First fetch without filtering to get the contributor list for include mode conversion
+  const { data: unfilteredDiff } = useDiff(toCommit, fromCommit, path, undefined)
+
+  // Determine which authors to exclude based on filter state and mode
+  const effectiveExcludedAuthors = useMemo(() => {
+    if (!filterEnabled || filterMode !== 'hide') return undefined
+    return getExcludedAuthorsForApi(filterState, unfilteredDiff?.contributors || [])
+  }, [filterEnabled, filterMode, filterState, unfilteredDiff?.contributors])
+
+  const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path, effectiveExcludedAuthors)
 
   // Compute processed files for gray mode (filtering done client-side)
   const { processedFiles, grayedOutIndices } = useMemo(() => {
@@ -277,20 +276,24 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     const files = diff.files
     const grayedOut = new Set<number>()
 
-    if (filterEnabled && filterMode === 'gray' && excludedAuthors.length > 0) {
-      files.forEach((file, index) => {
-        const authors = file.authors || []
-        // Gray out if ALL authors are excluded (or file has no authors)
-        const allExcluded = authors.length === 0 ||
-          authors.every(a => excludedAuthors.includes(a.email))
-        if (allExcluded) {
-          grayedOut.add(index)
-        }
-      })
+    if (filterEnabled && filterMode === 'gray') {
+      const excludedForGray = getExcludedAuthorsForApi(filterState, unfilteredDiff?.contributors || [])
+      if (excludedForGray && excludedForGray.length > 0) {
+        const excludedSet = new Set(excludedForGray)
+        files.forEach((file, index) => {
+          const authors = file.authors || []
+          // Gray out if ALL authors are excluded (or file has no authors)
+          const allExcluded = authors.length === 0 ||
+            authors.every(a => excludedSet.has(a.email))
+          if (allExcluded) {
+            grayedOut.add(index)
+          }
+        })
+      }
     }
 
     return { processedFiles: files, grayedOutIndices: grayedOut }
-  }, [diff, filterEnabled, filterMode, excludedAuthors])
+  }, [diff, filterEnabled, filterMode, filterState, unfilteredDiff?.contributors])
 
   // Initialize collapsed state based on settings when diff loads
   useEffect(() => {
@@ -430,7 +433,8 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   // Calculate stats for shown files only (when filtering)
   // Must be before early returns to satisfy React hooks rules
-  const isFiltering = filterEnabled && excludedAuthors.length > 0
+  const hasActiveFilter = filterState.authors.length > 0 || filterState.mode === 'IncludeAuthors'
+  const isFiltering = filterEnabled && hasActiveFilter
   const shownStats = useMemo(() => {
     if (!isFiltering || processedFiles.length === 0) return null
 
@@ -520,17 +524,17 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
         )}
         <div className="ml-auto flex items-center gap-1">
           {/* Contributor Filter */}
-          {diff.contributors && diff.contributors.length > 0 && (
+          {unfilteredDiff?.contributors && unfilteredDiff.contributors.length > 0 && (
             <>
               <ContributorFilter
-                contributors={diff.contributors}
-                excludedAuthors={excludedAuthors}
+                contributors={unfilteredDiff?.contributors || []}
+                filterState={filterState}
                 filterEnabled={filterEnabled}
                 onFilterEnabledChange={setFilterEnabled}
-                onExcludedAuthorsChange={setExcludedAuthors}
+                onFilterStateChange={setFilterState}
               />
               {/* Filter mode toggle - only visible when filter is active */}
-              {filterEnabled && diff.contributors && excludedAuthors.some(e => diff.contributors.some(c => c.email === e)) && (
+              {filterEnabled && hasActiveFilter && (
                 <>
                   <div className="w-px h-4 bg-gray-300 mx-1" />
                   <Button

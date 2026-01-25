@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCommits } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useSettingsStore } from '@/store/settingsStore'
@@ -7,37 +7,32 @@ import { Button } from '@/components/ui/button'
 import { GitCommit, GitCompare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContributorFilter } from './ContributorFilter'
-
-const STORAGE_KEY = 'git-viewer-excluded-authors'
-
-function loadExcludedAuthors(): string[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-function saveExcludedAuthors(authors: string[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(authors))
-}
+import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
 
 export function HistoryTab() {
   const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
   const { compactMode, contributorFilterEnabled, setContributorFilterEnabled } = useSettingsStore()
-  const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => loadExcludedAuthors())
+  const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
 
-  // Save excluded authors to localStorage whenever they change
+  // Save filter state to localStorage whenever it changes
   useEffect(() => {
-    saveExcludedAuthors(excludedAuthors)
-  }, [excludedAuthors])
+    saveAuthorFilter(filterState)
+  }, [filterState])
+
+  // We need to fetch commits first to get contributors, then compute the exclusion list
+  // Initial fetch without filtering to get the contributor list
+  const { data: initialData } = useCommits(currentPath || undefined, 50, 0, undefined)
+
+  const excludedAuthorsForApi = useMemo(() => {
+    if (!contributorFilterEnabled) return undefined
+    return getExcludedAuthorsForApi(filterState, initialData?.contributors || [])
+  }, [contributorFilterEnabled, filterState, initialData?.contributors])
 
   const { data, isLoading, error } = useCommits(
     currentPath || undefined,
     50,
     0,
-    contributorFilterEnabled && excludedAuthors.length > 0 ? excludedAuthors : undefined
+    excludedAuthorsForApi
   )
 
   const getCommitTimestamp = (oid: string) => {
@@ -102,11 +97,11 @@ export function HistoryTab() {
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-3">
           <ContributorFilter
-            contributors={data?.contributors || []}
-            excludedAuthors={excludedAuthors}
+            contributors={initialData?.contributors || []}
+            filterState={filterState}
             filterEnabled={contributorFilterEnabled}
             onFilterEnabledChange={setContributorFilterEnabled}
-            onExcludedAuthorsChange={setExcludedAuthors}
+            onFilterStateChange={setFilterState}
           />
           <span className="text-sm text-gray-500">
             {data?.filtered_total !== data?.total && data?.filtered_total !== undefined

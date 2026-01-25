@@ -5,59 +5,92 @@ import { Button } from '@/components/ui/button'
 import { ChevronDown, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AuthorInfo } from '@/api/types'
+import type { AuthorFilterState } from '@/utils/authorFilter'
+import { isAuthorIncluded } from '@/utils/authorFilter'
 
 interface ContributorFilterProps {
   contributors: AuthorInfo[]
-  excludedAuthors: string[]
+  filterState: AuthorFilterState
   filterEnabled: boolean
   onFilterEnabledChange: (enabled: boolean) => void
-  onExcludedAuthorsChange: (emails: string[]) => void
+  onFilterStateChange: (state: AuthorFilterState) => void
 }
 
 export function ContributorFilter({
   contributors,
-  excludedAuthors,
+  filterState,
   filterEnabled,
   onFilterEnabledChange,
-  onExcludedAuthorsChange,
+  onFilterStateChange,
 }: ContributorFilterProps) {
   const [open, setOpen] = useState(false)
 
-  // Get excluded authors that are actually contributors to current folder
-  const activeExcluded = excludedAuthors.filter(email =>
+  // Get authors in the filter list that are actually contributors to current folder
+  const activeAuthors = filterState.authors.filter(email =>
     contributors.some(c => c.email === email)
   )
 
   const handleToggleAuthor = (email: string) => {
-    if (excludedAuthors.includes(email)) {
-      onExcludedAuthorsChange(excludedAuthors.filter(e => e !== email))
+    const inList = filterState.authors.includes(email)
+    if (inList) {
+      // Remove from list
+      onFilterStateChange({
+        ...filterState,
+        authors: filterState.authors.filter(e => e !== email)
+      })
     } else {
-      onExcludedAuthorsChange([...excludedAuthors, email])
+      // Add to list
+      onFilterStateChange({
+        ...filterState,
+        authors: [...filterState.authors, email]
+      })
     }
   }
 
   const handleCheckAll = () => {
-    // Remove all current folder's contributors from excluded list
-    const contributorEmails = new Set(contributors.map(c => c.email))
-    onExcludedAuthorsChange(excludedAuthors.filter(e => !contributorEmails.has(e)))
+    // Switch to ExcludeAuthors mode with empty list (exclude nobody = show all)
+    onFilterStateChange({ mode: 'ExcludeAuthors', authors: [] })
   }
 
   const handleUncheckAll = () => {
-    // Add all current folder's contributors to excluded list
-    const contributorEmails = contributors.map(c => c.email)
-    const newExcluded = new Set([...excludedAuthors, ...contributorEmails])
-    onExcludedAuthorsChange(Array.from(newExcluded))
+    // Switch to IncludeAuthors mode with empty list (include nobody = show none)
+    onFilterStateChange({ mode: 'IncludeAuthors', authors: [] })
   }
 
   const getDisplayText = () => {
-    if (activeExcluded.length === 0) {
-      return 'Filter'
+    // In IncludeAuthors mode, always show the include indicator
+    if (filterState.mode === 'IncludeAuthors') {
+      if (activeAuthors.length === 0) {
+        return '+ 0 users'
+      }
+      if (activeAuthors.length === 1) {
+        const contributor = contributors.find(c => c.email === activeAuthors[0])
+        return `+${contributor?.name || 'Unknown'}`
+      }
+      return `+ ${activeAuthors.length} users`
+    } else {
+      // ExcludeAuthors mode
+      if (activeAuthors.length === 0) {
+        return 'Filter'
+      }
+      if (activeAuthors.length === 1) {
+        const contributor = contributors.find(c => c.email === activeAuthors[0])
+        return `-${contributor?.name || 'Unknown'}`
+      }
+      return `- ${activeAuthors.length} users`
     }
-    if (activeExcluded.length === 1) {
-      const contributor = contributors.find(c => c.email === activeExcluded[0])
-      return `-${contributor?.name || 'Unknown'}`
+  }
+
+  const getButtonStyle = () => {
+    // In IncludeAuthors mode, always show green (even with 0 users)
+    if (filterState.mode === 'IncludeAuthors') {
+      return 'text-green-600 border-green-300'
     }
-    return `-${activeExcluded.length} users`
+    // In ExcludeAuthors mode, only show red when there are exclusions
+    if (activeAuthors.length > 0) {
+      return 'text-red-600 border-red-300'
+    }
+    return ''
   }
 
   return (
@@ -84,7 +117,7 @@ export function ContributorFilter({
             size="sm"
             className={cn(
               "h-6 px-2 text-xs gap-1",
-              activeExcluded.length > 0 && "text-orange-600 border-orange-300"
+              getButtonStyle()
             )}
           >
             {getDisplayText()}
@@ -118,14 +151,14 @@ export function ContributorFilter({
                 </div>
               ) : (
                 contributors.map((contributor) => {
-                  const isIncluded = !excludedAuthors.includes(contributor.email)
+                  const included = isAuthorIncluded(contributor.email, filterState)
                   return (
                     <label
                       key={contributor.email}
                       className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
                     >
                       <Checkbox
-                        checked={isIncluded}
+                        checked={included}
                         onCheckedChange={() => handleToggleAuthor(contributor.email)}
                       />
                       <span className="text-sm truncate flex-1">
