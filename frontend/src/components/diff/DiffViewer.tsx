@@ -31,14 +31,14 @@
 import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { Panel, Group, Separator } from 'react-resizable-panels'
-import { useDiff } from '@/api/hooks'
+import { useDiff, useBlame } from '@/api/hooks'
 import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { ContributorFilter } from '@/components/bottom-panel/ContributorFilter'
-import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye } from 'lucide-react'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye, GitCommitHorizontal, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { FileDiff } from '@/api/types'
+import type { FileDiff, BlameLine } from '@/api/types'
 import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
 
 function formatRelativeTime(timestamp: number): string {
@@ -113,15 +113,147 @@ function getStatusLabel(status: FileDiff['status']) {
   }
 }
 
+// Type for blame data passed to the diff content
+interface BlameData {
+  leftBlameMap: Map<number, BlameLine>
+  rightBlameMap: Map<number, BlameLine>
+  blameDisplayLines: Set<string>
+  isLoading: boolean
+}
+
+// Hook to fetch and process blame data - only called when blame is enabled
+function useBlameData(
+  file: FileDiff,
+  fromCommit: string | undefined,
+  toCommit: string,
+  collapsed: boolean
+): BlameData {
+  const leftPath = file.old_path || file.new_path || null
+  const rightPath = file.new_path || file.old_path || null
+
+  const { data: leftBlameData, isLoading: leftLoading } = useBlame(
+    !collapsed ? leftPath : null,
+    !collapsed ? (fromCommit || null) : null
+  )
+  const { data: rightBlameData, isLoading: rightLoading } = useBlame(
+    !collapsed ? rightPath : null,
+    !collapsed ? toCommit : null
+  )
+
+  const leftBlameMap = useMemo(() => {
+    if (!leftBlameData) return new Map<number, BlameLine>()
+    const map = new Map<number, BlameLine>()
+    leftBlameData.lines.forEach(line => map.set(line.line_number, line))
+    return map
+  }, [leftBlameData])
+
+  const rightBlameMap = useMemo(() => {
+    if (!rightBlameData) return new Map<number, BlameLine>()
+    const map = new Map<number, BlameLine>()
+    rightBlameData.lines.forEach(line => map.set(line.line_number, line))
+    return map
+  }, [rightBlameData])
+
+  const blameDisplayLines = useMemo(() => {
+    if (!leftBlameData && !rightBlameData) return new Set<string>()
+    const display = new Set<string>()
+
+    const markFirstOfGroups = (blameMap: Map<number, BlameLine>, prefix: 'L' | 'R') => {
+      const sortedLines = [...blameMap.entries()].sort((a, b) => a[0] - b[0])
+      let lastAuthor: string | null = null
+      for (const [lineNum, blame] of sortedLines) {
+        if (blame.author_email !== lastAuthor) {
+          display.add(`${prefix}:${lineNum}`)
+          lastAuthor = blame.author_email
+        }
+      }
+    }
+
+    markFirstOfGroups(leftBlameMap, 'L')
+    markFirstOfGroups(rightBlameMap, 'R')
+    return display
+  }, [leftBlameData, rightBlameData, leftBlameMap, rightBlameMap])
+
+  return {
+    leftBlameMap,
+    rightBlameMap,
+    blameDisplayLines,
+    isLoading: leftLoading || rightLoading
+  }
+}
+
+// Wrapper component that adds blame hooks - only rendered when blame is enabled
+const FileDiffWithBlame = memo(function FileDiffWithBlame(props: {
+  file: FileDiff
+  splitView: boolean
+  collapsed: boolean
+  compact: boolean
+  index: number
+  isGrayedOut?: boolean
+  onToggleCollapse: (index: number) => void
+  onToggleBlame: (index: number) => void
+  fromCommit: string | undefined
+  toCommit: string
+}) {
+  const blameData = useBlameData(props.file, props.fromCommit, props.toCommit, props.collapsed)
+
+  return (
+    <FileDiffContentBase
+      {...props}
+      blameEnabled={true}
+      blameData={blameData}
+    />
+  )
+})
+
+// Empty blame data for when blame is disabled
+const emptyBlameData: BlameData = {
+  leftBlameMap: new Map(),
+  rightBlameMap: new Map(),
+  blameDisplayLines: new Set(),
+  isLoading: false
+}
+
 // Memoized component to prevent re-rendering heavy ReactDiffViewer when selection changes
-const FileDiffContent = memo(function FileDiffContent({
+const FileDiffContent = memo(function FileDiffContent(props: {
+  file: FileDiff
+  splitView: boolean
+  collapsed: boolean
+  compact: boolean
+  index: number
+  isGrayedOut?: boolean
+  onToggleCollapse: (index: number) => void
+  blameEnabled: boolean
+  onToggleBlame: (index: number) => void
+  fromCommit: string | undefined
+  toCommit: string
+}) {
+  // When blame is enabled, render the wrapper that includes the hooks
+  // When blame is disabled, render directly without hooks (zero overhead)
+  if (props.blameEnabled) {
+    return <FileDiffWithBlame {...props} />
+  }
+
+  return (
+    <FileDiffContentBase
+      {...props}
+      blameData={emptyBlameData}
+    />
+  )
+})
+
+// Base component that renders the diff - no hooks, just presentation
+const FileDiffContentBase = memo(function FileDiffContentBase({
   file,
   splitView,
   collapsed,
   compact,
   index,
   isGrayedOut,
-  onToggleCollapse
+  onToggleCollapse,
+  blameEnabled,
+  onToggleBlame,
+  blameData
 }: {
   file: FileDiff
   splitView: boolean
@@ -130,40 +262,80 @@ const FileDiffContent = memo(function FileDiffContent({
   index: number
   isGrayedOut?: boolean
   onToggleCollapse: (index: number) => void
+  blameEnabled: boolean
+  onToggleBlame: (index: number) => void
+  blameData: BlameData
 }) {
   const fileName = file.new_path || file.old_path || 'unknown'
   const authors = file.authors || []
+  const { leftBlameMap, rightBlameMap, blameDisplayLines, isLoading: blameLoading } = blameData
 
   // Build tooltip with all authors
   const authorTooltip = authors.length > 0
     ? authors.map(a => `${a.name} (${a.commit_count} commit${a.commit_count > 1 ? 's' : ''}) - ${formatRelativeTime(a.last_commit_timestamp)}`).join('\n')
     : undefined
 
+  // renderGutter callback for ReactDiffViewer
+  const renderGutter = useCallback((data: {
+    lineNumber: number
+    type: number
+    prefix: string
+    value: string | unknown[]
+    additionalLineNumber: number
+    additionalPrefix: string
+    styles: unknown
+  }) => {
+    const { lineNumber, prefix } = data
+    const blameMap = prefix === 'L' ? leftBlameMap : rightBlameMap
+    const key = `${prefix}:${lineNumber}`
+    const blame = blameMap.get(lineNumber)
+
+    if (!blame || !blameDisplayLines.has(key)) {
+      return <span className="w-20 inline-block" />
+    }
+
+    const firstName = blame.author_name.split(' ')[0]
+    const relTime = formatRelativeTime(blame.timestamp)
+
+    return (
+      <span
+        className="text-[10px] text-gray-500 w-20 inline-block truncate px-1 font-mono"
+        title={`${blame.author_name} - ${new Date(blame.timestamp * 1000).toLocaleDateString()}`}
+      >
+        {firstName} {relTime}
+      </span>
+    )
+  }, [leftBlameMap, rightBlameMap, blameDisplayLines])
+
   return (
     <div className={cn(isGrayedOut && "opacity-50")}>
       {/* File header */}
-      <button
-        onClick={() => onToggleCollapse(index)}
+      <div
         className={cn(
-          "w-full flex items-center gap-2 px-4 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer text-left",
+          "w-full flex items-center gap-2 px-4 bg-gray-50 border-b border-gray-200",
           compact ? "py-1" : "py-2"
         )}
       >
-        {collapsed ? (
-          <ChevronRight className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-        ) : (
-          <ChevronDown className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-        )}
-        {getStatusIcon(file.status)}
-        <span className={cn("font-medium", compact ? "text-xs" : "text-sm")}>{fileName}</span>
-        {file.old_path && file.new_path && file.old_path !== file.new_path && (
-          <span className={cn("text-gray-500", compact ? "text-[10px]" : "text-xs")}>
-            (from {file.old_path})
-          </span>
-        )}
+        <button
+          onClick={() => onToggleCollapse(index)}
+          className="flex items-center gap-2 hover:bg-gray-100 transition-colors cursor-pointer text-left flex-1 min-w-0"
+        >
+          {collapsed ? (
+            <ChevronRight className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+          ) : (
+            <ChevronDown className={cn("text-gray-500 shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+          )}
+          {getStatusIcon(file.status)}
+          <span className={cn("font-medium truncate", compact ? "text-xs" : "text-sm")}>{fileName}</span>
+          {file.old_path && file.new_path && file.old_path !== file.new_path && (
+            <span className={cn("text-gray-500 shrink-0", compact ? "text-[10px]" : "text-xs")}>
+              (from {file.old_path})
+            </span>
+          )}
+        </button>
         {authors.length > 0 && (
           <span
-            className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-purple-50 border border-purple-200 text-purple-700"
+            className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-purple-50 border border-purple-200 text-purple-700 shrink-0"
             title={authorTooltip}
           >
             <User className="h-3 w-3" />
@@ -179,9 +351,26 @@ const FileDiffContent = memo(function FileDiffContent({
             </span>
           </span>
         )}
+        {/* Blame toggle button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleBlame(index) }}
+          className={cn(
+            "p-1 rounded transition-colors shrink-0",
+            blameEnabled
+              ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          )}
+          title={blameEnabled ? "Hide blame" : "Show blame"}
+        >
+          {blameLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <GitCommitHorizontal className="h-3.5 w-3.5" />
+          )}
+        </button>
         <span
           className={cn(
-            "ml-auto rounded",
+            "rounded shrink-0",
             compact ? "px-1.5 py-0 text-[10px]" : "px-2 py-0.5 text-xs",
             file.status === 'added' && "bg-green-100 text-green-700",
             file.status === 'deleted' && "bg-red-100 text-red-700",
@@ -191,7 +380,7 @@ const FileDiffContent = memo(function FileDiffContent({
         >
           {getStatusLabel(file.status)}
         </span>
-      </button>
+      </div>
 
       {/* Diff content */}
       {!collapsed && (
@@ -207,6 +396,7 @@ const FileDiffContent = memo(function FileDiffContent({
               splitView={splitView}
               compareMethod={DiffMethod.LINES}
               useDarkTheme={false}
+              renderGutter={blameEnabled && !blameLoading ? renderGutter : undefined}
               styles={{
                 variables: {
                   light: {
@@ -273,6 +463,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
   const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
+  const [blameEnabledFiles, setBlameEnabledFiles] = useState<Set<number>>(new Set())
 
   const filePanelRef = useRef<HTMLDivElement | null>(null)
   const selectedFileIndexRef = useRef<number | null>(null)
@@ -344,6 +535,18 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   const toggleFileCollapsed = useCallback((index: number) => {
     setCollapsedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }, [])
+
+  const toggleBlame = useCallback((index: number) => {
+    setBlameEnabledFiles(prev => {
       const next = new Set(prev)
       if (next.has(index)) {
         next.delete(index)
@@ -723,6 +926,10 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                         index={index}
                         isGrayedOut={grayedOutIndices.has(index)}
                         onToggleCollapse={toggleFileCollapsed}
+                        blameEnabled={blameEnabledFiles.has(index)}
+                        onToggleBlame={toggleBlame}
+                        fromCommit={fromCommit}
+                        toCommit={toCommit}
                       />
                     </div>
                   ))}
@@ -757,6 +964,10 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                     index={index}
                     isGrayedOut={grayedOutIndices.has(index)}
                     onToggleCollapse={toggleFileCollapsed}
+                    blameEnabled={blameEnabledFiles.has(index)}
+                    onToggleBlame={toggleBlame}
+                    fromCommit={fromCommit}
+                    toCommit={toCommit}
                   />
                 </div>
               ))}

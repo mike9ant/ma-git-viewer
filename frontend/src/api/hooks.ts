@@ -143,3 +143,11 @@ export function useCheckoutRemoteBranch() {
     },
   })
 }
+
+export function useBlame(path: string | null, commit: string | null) {
+  return useQuery({
+    queryKey: ['blame', path, commit],
+    queryFn: ({ signal }) => api.getBlame(path!, commit!, signal),
+    enabled: !!path && !!commit,
+  })
+}

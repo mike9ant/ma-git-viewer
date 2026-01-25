@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::error::{AppError, Result};
 use crate::git::cache::CommitCache;
-use crate::models::{BranchInfo, CommitInfo, RepositoryInfo};
+use crate::models::{BlameLine, BlameResponse, BranchInfo, CommitInfo, RepositoryInfo};
 
 pub struct GitRepository {
     pub repo: Mutex<Repository>,
@@ -320,6 +320,70 @@ impl GitRepository {
         tracing::info!("Created and checked out local branch '{}' tracking '{}'", local_name, remote_branch);
 
         Ok(())
+    }
+
+    /// Get blame information for a file at a specific commit
+    pub fn get_blame(&self, path: &str, commit_oid: Option<&str>) -> Result<BlameResponse> {
+        let repo = self.repo.lock().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+
+        // Determine the commit to blame at
+        let commit_id = if let Some(oid_str) = commit_oid {
+            git2::Oid::from_str(oid_str)
+                .map_err(|_| AppError::PathNotFound(format!("Invalid commit OID: {}", oid_str)))?
+        } else {
+            // Default to HEAD
+            repo.head()
+                .map_err(|_| AppError::PathNotFound("No HEAD found".to_string()))?
+                .peel_to_commit()
+                .map_err(|_| AppError::PathNotFound("Cannot resolve HEAD to commit".to_string()))?
+                .id()
+        };
+
+        let commit = repo.find_commit(commit_id)
+            .map_err(|_| AppError::PathNotFound(format!("Commit not found: {}", commit_id)))?;
+
+        // Set up blame options to stop at the specific commit
+        let mut blame_opts = git2::BlameOptions::new();
+        blame_opts.newest_commit(commit_id);
+
+        // Get blame for the file
+        let blame = repo.blame_file(std::path::Path::new(path), Some(&mut blame_opts))
+            .map_err(|e| AppError::PathNotFound(format!("Cannot blame file '{}': {}", path, e)))?;
+
+        // Convert blame hunks to BlameLine entries
+        let mut lines = Vec::new();
+        for hunk_index in 0..blame.len() {
+            if let Some(hunk) = blame.get_index(hunk_index) {
+                let sig = hunk.final_signature();
+                let author_name = sig.name().unwrap_or("Unknown").to_string();
+                let author_email = sig.email().unwrap_or("").to_string();
+                let hunk_commit_id = hunk.final_commit_id();
+                let timestamp = sig.when().seconds();
+
+                // Each hunk covers multiple lines
+                let start_line = hunk.final_start_line();
+                let line_count = hunk.lines_in_hunk();
+
+                for i in 0..line_count {
+                    lines.push(BlameLine {
+                        line_number: (start_line + i) as u32,
+                        author_name: author_name.clone(),
+                        author_email: author_email.clone(),
+                        commit_oid: hunk_commit_id.to_string(),
+                        timestamp,
+                    });
+                }
+            }
+        }
+
+        // Sort by line number
+        lines.sort_by_key(|l| l.line_number);
+
+        Ok(BlameResponse {
+            path: path.to_string(),
+            commit: commit_id.to_string(),
+            lines,
+        })
     }
 }
 

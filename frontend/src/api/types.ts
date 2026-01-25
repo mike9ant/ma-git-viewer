@@ -150,3 +150,17 @@ export interface BranchInfo {
   is_remote: boolean
   last_commit?: CommitInfo
 }
+
+export interface BlameLine {
+  line_number: number
+  author_name: string
+  author_email: string
+  commit_oid: string
+  timestamp: number
+}
+
+export interface BlameResponse {
+  path: string
+  commit: string
+  lines: BlameLine[]
+}

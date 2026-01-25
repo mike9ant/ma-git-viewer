@@ -6,9 +6,11 @@
 //! - `tree`: Directory listing and file content
 //! - `commits`: Commit history with filtering
 //! - `diff`: Diff between commits
+//! - `blame`: Per-line author attribution
 //! - `status`: Directory statistics
 //! - `filesystem`: Browse filesystem and switch repositories
 
+pub mod blame;
 pub mod branches;
 pub mod commits;
 pub mod diff;
@@ -28,6 +30,7 @@ pub fn create_router(repo: SharedRepo) -> Router {
         .merge(tree::routes(repo.clone()))
         .merge(commits::routes(repo.clone()))
         .merge(diff::routes(repo.clone()))
+        .merge(blame::routes(repo.clone()))
         .merge(status::routes(repo.clone()))
         .merge(filesystem::routes(repo))
 }

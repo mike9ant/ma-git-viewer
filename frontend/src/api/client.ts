@@ -17,6 +17,7 @@ import type {
   DirectoryInfo,
   DirectoryListing,
   BranchInfo,
+  BlameResponse,
 } from './types'
 
 const API_BASE = '/api/v1'
@@ -127,5 +128,10 @@ export const api = {
       const error = await response.json().catch(() => ({ error: response.statusText }))
       throw new Error(error.error || 'Request failed')
     }
+  },
+
+  getBlame: (path: string, commit: string, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ path, commit })
+    return fetchJson<BlameResponse>(`${API_BASE}/repository/blame?${params}`, signal)
   },
 }
