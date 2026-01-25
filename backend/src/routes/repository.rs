@@ -1,3 +1,10 @@
+//! Repository info endpoint.
+//!
+//! GET /api/v1/repository - Returns basic repository metadata:
+//! name, path, current branch, HEAD commit, bare/empty status.
+//!
+//! Used by: AppLayout header to display repo name and branch
+
 use axum::{extract::State, routing::get, Json, Router};
 
 use crate::error::{AppError, Result};

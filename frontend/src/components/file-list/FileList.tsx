@@ -1,3 +1,17 @@
+/**
+ * FileList - Main directory content view (GitHub-style file listing).
+ *
+ * Displays files and folders in currentPath with:
+ * - Name, size (files) or child count (folders)
+ * - Last commit message and relative time
+ * - ".." row to navigate to parent directory
+ *
+ * Clicking a folder navigates into it (updates currentPath).
+ * Clicking a file currently does nothing (no file preview implemented).
+ *
+ * Data comes from /api/v1/repository/tree with include_last_commit=true.
+ */
+
 import { useMemo } from 'react'
 import { Folder, File, ArrowLeft, FolderIcon, FileIcon } from 'lucide-react'
 import { useTree } from '@/api/hooks'

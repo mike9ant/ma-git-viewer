@@ -1,3 +1,14 @@
+//! Application error types and HTTP response mapping.
+//!
+//! Defines `AppError` enum for all error conditions and implements Axum's
+//! `IntoResponse` to automatically convert errors to appropriate HTTP responses
+//! with JSON error bodies.
+//!
+//! Error mappings:
+//! - `RepoNotFound`, `PathNotFound`, `CommitNotFound` → 404
+//! - `InvalidPath` → 400
+//! - `Git`, `Internal` → 500
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},

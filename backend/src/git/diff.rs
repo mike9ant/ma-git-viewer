@@ -1,3 +1,16 @@
+//! Diff generation between commits.
+//!
+//! Generates detailed diffs with:
+//! - File-level changes (added, modified, deleted, renamed)
+//! - Hunks with line-by-line additions/deletions
+//! - Full file contents (old and new) for side-by-side view
+//! - Author attribution per file (who touched each file between commits)
+//!
+//! `get_file_authors_between_commits()` walks intermediate commits to track
+//! which authors modified each file, enabling contributor filtering in diff view.
+//!
+//! Supports frontend: DiffViewer modal with split/unified view, author badges
+
 use git2::{Delta, DiffOptions, Repository, Sort};
 use std::collections::HashMap;
 use std::path::Path;

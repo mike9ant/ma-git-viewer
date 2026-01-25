@@ -1,3 +1,10 @@
+/**
+ * Utility functions used across the application.
+ *
+ * - cn(): Tailwind class name merger (handles conflicts)
+ * - formatBytes(): Human-readable file sizes (e.g., "1.5 MB")
+ */
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 

@@ -1,9 +1,16 @@
 //! Commit cache for fast history queries.
 //!
-//! This module provides an in-memory cache of commit history that:
-//! - Loads all commit metadata once on first access
-//! - Lazily builds path indices when paths are first queried
-//! - Invalidates when HEAD changes
+//! Provides in-memory caching of commit history to avoid repeated git walks.
+//! - Global cache: All commits loaded once (~1-3s for 30K commits)
+//! - Path indices: Built lazily per path, then instant lookups
+//! - Cache invalidation: Checks HEAD on each request
+//!
+//! Performance: First query for a path is slow (walks history), subsequent
+//! queries are instant (in-memory filtering). Author filtering and pagination
+//! operate on cached data.
+//!
+//! Used by: `GitRepository::get_commits()` in history.rs
+//! Supports: HistoryTab commit list, contributor filtering
 
 use git2::{Oid, Repository, Sort};
 use std::collections::HashMap;

@@ -1,3 +1,13 @@
+//! API route handlers - maps HTTP endpoints to git operations.
+//!
+//! Each submodule defines routes for a feature area:
+//! - `repository`: Basic repo info (GET /api/v1/repository)
+//! - `tree`: Directory listing and file content
+//! - `commits`: Commit history with filtering
+//! - `diff`: Diff between commits
+//! - `status`: Directory statistics
+//! - `filesystem`: Browse filesystem and switch repositories
+
 pub mod commits;
 pub mod diff;
 pub mod filesystem;

@@ -1,3 +1,16 @@
+/**
+ * Selection state store - tracks user's current navigation and selection.
+ *
+ * Manages:
+ * - currentPath: Currently viewed directory in FileList
+ * - selectedFile: Currently selected file (if any)
+ * - selectedCommits: Up to 2 commits selected for comparison
+ * - diffModal: State for the diff viewer modal
+ *
+ * This is ephemeral UI state (not persisted). For persisted settings,
+ * see settingsStore.ts.
+ */
+
 import { create } from 'zustand'
 
 interface SelectionState {

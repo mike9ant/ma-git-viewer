@@ -1,3 +1,15 @@
+/**
+ * RepoSwitcher - Dropdown to browse filesystem and switch repositories.
+ *
+ * Located in header. Opens a popover showing:
+ * - Current filesystem path with "go up" navigation
+ * - List of subdirectories (git repos marked with special icon)
+ *
+ * Clicking a git repo switches the backend to serve that repository.
+ * Clicking a regular folder navigates into it.
+ * After switching, all queries are invalidated to refresh data.
+ */
+
 import * as React from 'react'
 import { GitBranch, Folder, FolderGit, ChevronUp, Loader2 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'

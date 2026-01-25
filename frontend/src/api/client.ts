@@ -1,3 +1,13 @@
+/**
+ * API client - low-level fetch functions for backend communication.
+ *
+ * All functions accept an optional AbortSignal for request cancellation.
+ * React Query automatically cancels in-flight requests when query keys change,
+ * improving UI responsiveness when users navigate quickly.
+ *
+ * Functions map 1:1 to backend endpoints. Used by hooks in hooks.ts.
+ */
+
 import type {
   RepositoryInfo,
   TreeEntry,

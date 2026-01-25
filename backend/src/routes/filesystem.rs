@@ -1,3 +1,14 @@
+//! Filesystem browsing and repository switching.
+//!
+//! - GET /api/v1/filesystem/list?path=
+//!   Lists directories (not files) at path, marking which are git repos.
+//!   Used by: RepoSwitcher to browse for other repositories
+//!
+//! - POST /api/v1/filesystem/switch { path: string }
+//!   Switches the backend to serve a different git repository.
+//!   Replaces the shared GitRepository instance.
+//!   Used by: RepoSwitcher when user selects a new repo
+
 use axum::{
     extract::{Query, State},
     routing::{get, post},

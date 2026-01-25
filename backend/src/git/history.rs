@@ -1,3 +1,15 @@
+//! Commit history operations.
+//!
+//! Provides:
+//! - `get_commits()`: Paginated commit list with author filtering (uses cache)
+//! - `get_directory_info()`: Directory statistics (file count, size, contributors)
+//! - `get_last_commits_for_paths()`: Batch fetch last commit info for multiple paths
+//!
+//! The main `get_commits()` uses the commit cache for fast repeated queries.
+//! First query for a path builds the cache, subsequent queries are instant.
+//!
+//! Supports frontend: HistoryTab commit list, contributor filter, directory info
+
 use git2::{DiffOptions, Repository, Sort};
 use std::collections::{HashMap, HashSet};
 

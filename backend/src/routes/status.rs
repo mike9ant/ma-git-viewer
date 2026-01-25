@@ -1,3 +1,15 @@
+//! Directory status/info endpoint.
+//!
+//! GET /api/v1/repository/directory-info?path=
+//!
+//! Returns directory statistics:
+//! - File and directory counts
+//! - Total size
+//! - Contributors (who committed to files in this directory)
+//! - First and latest commit dates
+//!
+//! Used by: StatusTab in bottom panel (directory statistics view)
+
 use axum::{
     extract::{Query, State},
     routing::get,

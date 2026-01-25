@@ -1,3 +1,15 @@
+/**
+ * StatusTab - Directory statistics display.
+ *
+ * Shows for current directory:
+ * - File and folder counts
+ * - Total size
+ * - Top contributors with commit counts
+ * - First and latest commit dates
+ *
+ * Provides overview of directory without browsing individual files.
+ */
+
 import { useDirectoryInfo } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'

@@ -1,3 +1,10 @@
+/**
+ * TypeScript interfaces matching backend API response DTOs.
+ *
+ * These mirror the Rust structs in backend/src/models/*.rs.
+ * Keep in sync when modifying API contracts.
+ */
+
 export interface CommitInfo {
   oid: string
   message: string

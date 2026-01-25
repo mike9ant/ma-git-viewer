@@ -1,3 +1,16 @@
+/**
+ * FileTree - Left sidebar with expandable directory tree.
+ *
+ * Shows full repository structure fetched from /api/v1/repository/tree/full.
+ * Clicking a directory navigates FileList to that path.
+ *
+ * Features:
+ * - Expandable folders with expand/collapse all
+ * - Toggle to show/hide files (directories-only by default)
+ * - Current path highlighted
+ * - Root path click returns to repository root
+ */
+
 import { useState } from 'react'
 import { ChevronRight, ChevronDown, Folder, FolderOpen, GitBranch, File, FolderTree } from 'lucide-react'
 import { useFullTree } from '@/api/hooks'

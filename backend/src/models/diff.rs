@@ -1,3 +1,13 @@
+//! Diff-related DTOs.
+//!
+//! - `DiffResponse`: Complete diff with files, stats, and contributors
+//! - `FileDiff`: Single file's changes with hunks and author info
+//! - `DiffHunk`: Contiguous block of changes with context
+//! - `DiffLine`: Single line (addition, deletion, or context)
+//! - `FileAuthorInfo`: Who touched a file, with commit count (for author badges)
+//!
+//! Used by: DiffViewer to render side-by-side or unified diff view
+
 use serde::{Deserialize, Serialize};
 use super::AuthorInfo;
 

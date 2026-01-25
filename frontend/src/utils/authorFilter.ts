@@ -1,3 +1,16 @@
+/**
+ * Author filter utilities - manages include/exclude filtering by contributor.
+ *
+ * Supports two modes:
+ * - ExcludeAuthors: Show all except selected (default)
+ * - IncludeAuthors: Show only selected
+ *
+ * State is persisted to localStorage. The API only supports exclusion,
+ * so IncludeAuthors mode is converted to exclusion by computing the complement.
+ *
+ * Used by: HistoryTab and DiffViewer contributor filter dropdowns
+ */
+
 import type { AuthorInfo } from '@/api/types'
 
 export interface AuthorFilterState {

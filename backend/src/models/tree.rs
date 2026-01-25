@@ -1,3 +1,12 @@
+//! Tree and repository-related DTOs.
+//!
+//! - `TreeEntry`: Single file/directory in a listing (FileList view)
+//! - `FullTreeEntry`: Recursive tree node (FileTree sidebar)
+//! - `RepositoryInfo`: Repo metadata (header display)
+//! - `DirectoryInfo`: Directory statistics (StatusTab)
+//! - `CommitInfo`: Basic commit info (last commit in tree entries)
+//! - `ContributorInfo`: Author with commit count
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

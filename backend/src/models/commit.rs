@@ -1,3 +1,9 @@
+//! Commit history DTOs.
+//!
+//! - `CommitDetail`: Full commit info for history list (HistoryTab)
+//! - `CommitListResponse`: Paginated commit list with totals and contributors
+//! - `AuthorInfo`: Author name and email (used in contributor filter)
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

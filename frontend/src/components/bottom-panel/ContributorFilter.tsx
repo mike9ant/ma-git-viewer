@@ -1,3 +1,17 @@
+/**
+ * ContributorFilter - Dropdown to filter commits/diffs by author.
+ *
+ * Two modes indicated by button color:
+ * - Green (+): Include mode - only show selected authors
+ * - Red (-): Exclude mode - hide selected authors
+ *
+ * Filter state is shared between HistoryTab and DiffViewer via localStorage.
+ * The toggle button enables/disables filtering without losing selection.
+ *
+ * "All" resets to exclude mode with empty list (show everyone).
+ * "None" switches to include mode with empty list (show nobody).
+ */
+
 import { useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'

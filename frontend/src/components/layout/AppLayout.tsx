@@ -1,3 +1,20 @@
+/**
+ * AppLayout - Main application layout with resizable panels.
+ *
+ * Structure:
+ * ┌─────────────────────────────────────┐
+ * │ Header (repo name, branch, compact) │
+ * ├────────────┬────────────────────────┤
+ * │            │      FileList          │
+ * │  FileTree  ├────────────────────────┤
+ * │            │    BottomPanel         │
+ * │            │  (History | Status)    │
+ * └────────────┴────────────────────────┘
+ *
+ * All panels are resizable via react-resizable-panels.
+ * DiffModal overlays when viewing commit diffs.
+ */
+
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import { useRepository } from '@/api/hooks'
 import { useSettingsStore } from '@/store/settingsStore'

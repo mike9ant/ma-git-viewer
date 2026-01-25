@@ -1,3 +1,15 @@
+/**
+ * Settings store - persisted user preferences.
+ *
+ * Stored in localStorage under 'git-viewer-settings'.
+ * Includes preferences for:
+ * - Diff viewer: split/unified view, compact mode, panel sizes
+ * - File tree: show files toggle, panel size
+ * - Global: compact mode, contributor filter enabled
+ *
+ * Separate from selectionStore which holds ephemeral navigation state.
+ */
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 

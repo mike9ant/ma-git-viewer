@@ -1,3 +1,18 @@
+/**
+ * React Query hooks for server state management.
+ *
+ * Each hook wraps an API call with automatic caching, refetching, and cancellation.
+ * Query keys include all parameters that affect the response, enabling proper
+ * cache invalidation when dependencies change.
+ *
+ * Key hooks:
+ * - useRepository(): Repo metadata for header
+ * - useTree(): Directory listing for FileList
+ * - useFullTree(): Complete tree for FileTree sidebar
+ * - useCommits(): Commit history for HistoryTab
+ * - useDiff(): Diff data for DiffViewer
+ */
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { useSelectionStore } from '@/store/selectionStore'

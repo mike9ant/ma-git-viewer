@@ -1,3 +1,17 @@
+/**
+ * HistoryTab - Commit history list for the current directory.
+ *
+ * Features:
+ * - Lists commits that touched files in currentPath
+ * - Contributor filter to show/hide commits by author
+ * - Select up to 2 commits for comparison
+ * - "View" button opens DiffModal for single commit
+ * - "Compare" button opens DiffModal for selected commits
+ *
+ * Uses commit cache on backend for fast repeated queries.
+ * Makes two API calls: unfiltered (for contributor list) + filtered.
+ */
+
 import { useState, useEffect, useMemo } from 'react'
 import { useCommits } from '@/api/hooks'
 import { useSelectionStore } from '@/store/selectionStore'

@@ -1,3 +1,23 @@
+//! Git Repository Viewer - Backend Server
+//!
+//! A REST API server that provides git repository data to the frontend.
+//! Uses libgit2 for git operations and Axum for HTTP handling.
+//!
+//! # Usage
+//! ```bash
+//! cargo run -- /path/to/repository
+//! ```
+//!
+//! # Endpoints
+//! - `GET /api/v1/repository` - Repository metadata (name, branch, HEAD)
+//! - `GET /api/v1/repository/tree` - Directory listing with last commit info
+//! - `GET /api/v1/repository/file` - File content
+//! - `GET /api/v1/repository/commits` - Commit history with filtering
+//! - `GET /api/v1/repository/diff` - Diff between commits
+//! - `GET /api/v1/repository/directory-info` - Directory statistics
+//! - `GET /api/v1/filesystem/list` - Browse filesystem for repo switching
+//! - `POST /api/v1/filesystem/switch` - Switch to different repository
+
 mod error;
 mod git;
 mod models;

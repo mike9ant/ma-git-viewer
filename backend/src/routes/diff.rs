@@ -1,3 +1,16 @@
+//! Diff endpoint.
+//!
+//! GET /api/v1/repository/diff?from=&to=&path=&exclude_authors=
+//!
+//! Returns diff between two commits (or commit and its parent if `from` omitted):
+//! - File list with status (added/modified/deleted/renamed)
+//! - Hunks with line-by-line changes
+//! - Full file contents for side-by-side diff view
+//! - Author attribution per file (who touched each file)
+//! - Author filtering to hide files by excluded contributors
+//!
+//! Used by: DiffViewer modal (single commit view or compare two commits)
+
 use axum::{
     extract::{Query, State},
     routing::get,

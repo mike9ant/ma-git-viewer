@@ -1,3 +1,14 @@
+/**
+ * BottomPanel - Tabbed panel showing commit history or directory status.
+ *
+ * Tabs:
+ * - History: Commit list for current path with contributor filtering
+ * - Status: Directory statistics (file count, size, contributors)
+ *
+ * History is the default and most-used tab. Clicking commits here
+ * opens the DiffModal to view changes.
+ */
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusTab } from './StatusTab'
 import { HistoryTab } from './HistoryTab'

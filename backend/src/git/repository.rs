@@ -1,3 +1,12 @@
+//! Thread-safe git repository wrapper.
+//!
+//! Provides `GitRepository` struct that wraps libgit2's Repository with:
+//! - Mutex for thread-safe access (libgit2 Repository is not thread-safe)
+//! - Commit cache for fast history queries (lazily initialized)
+//! - Helper methods for common operations
+//!
+//! Used by: All route handlers via `SharedRepo` (Arc<RwLock<GitRepository>>)
+
 use git2::Repository;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};

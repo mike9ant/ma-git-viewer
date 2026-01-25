@@ -1,3 +1,33 @@
+/**
+ * DiffViewer - Main diff display component with file list and code viewer.
+ *
+ * Layout:
+ * ┌─────────────────────────────────────────────────┐
+ * │ Stats bar (files changed, +insertions, -deletions)│
+ * ├──────────┬──────────────────────────────────────┤
+ * │          │  File 1 header + diff                │
+ * │  File    │  ──────────────────────────────────  │
+ * │  List    │  File 2 header + diff                │
+ * │ (toggle) │  ...                                 │
+ * └──────────┴──────────────────────────────────────┘
+ *
+ * Features:
+ * - Split (side-by-side) or unified diff view toggle
+ * - Collapsible file sections (expand/collapse all)
+ * - Compact mode for denser display
+ * - Contributor filter (hide or gray out files by author)
+ * - File list panel (toggleable) with scroll sync
+ * - Author badges on each file showing who modified it
+ *
+ * Performance notes:
+ * - All files rendered in DOM (no virtualization)
+ * - FileDiffContent is memoized to prevent re-renders
+ * - Collapsed files skip rendering diff content
+ * - React Query caches diff data for instant revisits
+ *
+ * Makes 2 API calls: unfiltered (contributor list) + filtered (if applicable)
+ */
+
 import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { Panel, Group, Separator } from 'react-resizable-panels'

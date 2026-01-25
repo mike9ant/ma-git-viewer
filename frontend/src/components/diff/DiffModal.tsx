@@ -1,3 +1,14 @@
+/**
+ * DiffModal - Full-screen modal for viewing commit diffs.
+ *
+ * Opened from HistoryTab via:
+ * - "View" button: Single commit diff (vs parent)
+ * - "Compare" button: Diff between two selected commits
+ *
+ * Shows commit info in header, renders DiffViewer for actual diff content.
+ * Modal state is managed in selectionStore.
+ */
+
 import {
   Dialog,
   DialogContent,

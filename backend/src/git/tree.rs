@@ -1,3 +1,12 @@
+//! File tree operations - directory listing and file content retrieval.
+//!
+//! Provides methods to:
+//! - `get_tree_entries()`: List directory contents with metadata and last commit info
+//! - `get_full_tree()`: Get complete recursive tree structure (for file tree sidebar)
+//! - `get_file_content()`: Read file content as UTF-8 string
+//!
+//! Supports frontend: FileTree sidebar, FileList directory view, file preview
+
 use git2::ObjectType;
 use std::path::Path;
 

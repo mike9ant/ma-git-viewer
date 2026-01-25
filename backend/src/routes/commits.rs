@@ -1,3 +1,16 @@
+//! Commit history endpoint.
+//!
+//! GET /api/v1/repository/commits?path=&limit=50&offset=0&exclude_authors=
+//!
+//! Returns paginated commit history with:
+//! - Commits filtered by path (only commits touching that path)
+//! - Author exclusion filter (comma-separated emails)
+//! - Total and filtered counts for pagination
+//! - Contributor list for the filter dropdown
+//!
+//! Uses commit cache for fast repeated queries.
+//! Used by: HistoryTab commit list and contributor filter
+
 use axum::{
     extract::{Query, State},
     routing::get,

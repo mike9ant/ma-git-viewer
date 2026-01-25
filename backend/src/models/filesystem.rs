@@ -1,3 +1,11 @@
+//! Filesystem browsing DTOs for repository switching.
+//!
+//! - `DirectoryListing`: Directory contents with parent path for navigation
+//! - `FilesystemEntry`: Single directory entry, flagged if it's a git repo
+//! - `SwitchRepoRequest`: Request body for switching repositories
+//!
+//! Used by: RepoSwitcher component to browse and select repositories
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]

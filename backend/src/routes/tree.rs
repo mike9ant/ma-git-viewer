@@ -1,3 +1,17 @@
+//! Tree and file content endpoints.
+//!
+//! - GET /api/v1/repository/tree?path=&include_last_commit=true
+//!   Directory listing with file metadata and last commit info.
+//!   Used by: FileList component for directory browsing
+//!
+//! - GET /api/v1/repository/tree/full
+//!   Complete recursive tree structure.
+//!   Used by: FileTree sidebar for expandable navigation
+//!
+//! - GET /api/v1/repository/file?path=
+//!   File content as UTF-8 string.
+//!   Used by: File preview (if implemented)
+
 use axum::{
     extract::{Query, State},
     routing::get,
