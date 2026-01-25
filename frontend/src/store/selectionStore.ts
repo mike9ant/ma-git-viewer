@@ -3,6 +3,7 @@
  *
  * Manages:
  * - currentPath: Currently viewed directory in FileList
+ * - historyPath: Path that history/status is shown for (may differ from currentPath when a file is selected)
  * - selectedFile: Currently selected file (if any)
  * - selectedCommits: Up to 2 commits selected for comparison
  * - diffModal: State for the diff viewer modal
@@ -15,6 +16,7 @@ import { create } from 'zustand'
 
 interface SelectionState {
   currentPath: string
+  historyPath: string
   selectedFile: string | null
   selectedCommits: string[]
   diffModalOpen: boolean
@@ -24,6 +26,7 @@ interface SelectionState {
   diffCommitToTimestamp: number | null
 
   setCurrentPath: (path: string) => void
+  setHistoryPath: (path: string) => void
   setSelectedFile: (file: string | null) => void
   toggleCommitSelection: (commitOid: string) => void
   clearCommitSelection: () => void
@@ -34,6 +37,7 @@ interface SelectionState {
 
 export const useSelectionStore = create<SelectionState>((set) => ({
   currentPath: '',
+  historyPath: '',
   selectedFile: null,
   selectedCommits: [],
   diffModalOpen: false,
@@ -42,7 +46,9 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   diffCommitFromTimestamp: null,
   diffCommitToTimestamp: null,
 
-  setCurrentPath: (path) => set({ currentPath: path, selectedFile: null }),
+  setCurrentPath: (path) => set({ currentPath: path, historyPath: path, selectedFile: null }),
+
+  setHistoryPath: (path) => set({ historyPath: path }),
 
   setSelectedFile: (file) => set({ selectedFile: file }),
 
@@ -82,6 +88,7 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   resetSelection: () =>
     set({
       currentPath: '',
+      historyPath: '',
       selectedFile: null,
       selectedCommits: [],
       diffModalOpen: false,

@@ -32,7 +32,7 @@ export function DiffModal() {
     diffCommitFromTimestamp,
     diffCommitToTimestamp,
     closeDiffModal,
-    currentPath
+    historyPath
   } = useSelectionStore()
 
   if (!diffCommitTo) return null
@@ -80,9 +80,9 @@ export function DiffModal() {
                 )}
               </>
             )}
-            {currentPath && (
+            {historyPath && (
               <span className="text-gray-500 text-sm font-normal ml-2">
-                (filtered by {currentPath})
+                (filtered by {historyPath})
               </span>
             )}
           </DialogTitle>
@@ -91,7 +91,7 @@ export function DiffModal() {
           <DiffViewer
             toCommit={diffCommitTo}
             fromCommit={diffCommitFrom || undefined}
-            path={currentPath || undefined}
+            path={historyPath || undefined}
           />
         </div>
       </DialogContent>

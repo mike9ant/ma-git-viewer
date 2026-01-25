@@ -2,7 +2,7 @@
  * HistoryTab - Commit history list for the current directory.
  *
  * Features:
- * - Lists commits that touched files in currentPath
+ * - Lists commits that touched files in historyPath
  * - Contributor filter to show/hide commits by author
  * - Select up to 2 commits for comparison
  * - "View" button opens DiffModal for single commit
@@ -24,7 +24,7 @@ import { ContributorFilter } from './ContributorFilter'
 import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
 
 export function HistoryTab() {
-  const { currentPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
+  const { historyPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
   const { compactMode, contributorFilterEnabled, setContributorFilterEnabled } = useSettingsStore()
   const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
 
@@ -35,7 +35,7 @@ export function HistoryTab() {
 
   // We need to fetch commits first to get contributors, then compute the exclusion list
   // Initial fetch without filtering to get the contributor list
-  const { data: initialData } = useCommits(currentPath || undefined, 50, 0, undefined)
+  const { data: initialData } = useCommits(historyPath || undefined, 50, 0, undefined)
 
   const excludedAuthorsForApi = useMemo(() => {
     if (!contributorFilterEnabled) return undefined
@@ -43,7 +43,7 @@ export function HistoryTab() {
   }, [contributorFilterEnabled, filterState, initialData?.contributors])
 
   const { data, isLoading, error } = useCommits(
-    currentPath || undefined,
+    historyPath || undefined,
     50,
     0,
     excludedAuthorsForApi
@@ -121,7 +121,7 @@ export function HistoryTab() {
             {data?.filtered_total !== data?.total && data?.filtered_total !== undefined
               ? `${data?.filtered_total} of ${data?.total} commits`
               : `${data?.total} commits`}
-            {currentPath && ` affecting ${currentPath}`}
+            {historyPath && ` affecting ${historyPath}`}
           </span>
         </div>
         <div className="flex items-center gap-2">

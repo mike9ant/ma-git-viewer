@@ -93,7 +93,7 @@ function FileRow({ entry, onDoubleClick, onClick, isSelected, compact }: FileRow
 }
 
 export function FileList() {
-  const { currentPath, setCurrentPath, selectedFile, setSelectedFile } = useSelectionStore()
+  const { currentPath, setCurrentPath, selectedFile, setSelectedFile, setHistoryPath } = useSelectionStore()
   const { compactMode } = useSettingsStore()
 
   // Fast query: get file list without commit info
@@ -120,6 +120,9 @@ export function FileList() {
   const handleEntryDoubleClick = (entry: TreeEntry) => {
     if (entry.entry_type === 'directory') {
       setCurrentPath(entry.path)
+    } else {
+      // Double-click on file: show history for just this file
+      setHistoryPath(entry.path)
     }
   }
 
