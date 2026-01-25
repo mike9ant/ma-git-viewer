@@ -5,28 +5,28 @@ import { useSelectionStore } from '@/store/selectionStore'
 export function useRepository() {
   return useQuery({
     queryKey: ['repository'],
-    queryFn: api.getRepository,
+    queryFn: ({ signal }) => api.getRepository(signal),
   })
 }
 
 export function useTree(path?: string, includeLastCommit = true) {
   return useQuery({
     queryKey: ['tree', path, includeLastCommit],
-    queryFn: () => api.getTree(path, includeLastCommit),
+    queryFn: ({ signal }) => api.getTree(path, includeLastCommit, signal),
   })
 }
 
 export function useFullTree() {
   return useQuery({
     queryKey: ['fullTree'],
-    queryFn: api.getFullTree,
+    queryFn: ({ signal }) => api.getFullTree(signal),
   })
 }
 
 export function useFileContent(path: string | null) {
   return useQuery({
     queryKey: ['file', path],
-    queryFn: () => api.getFileContent(path!),
+    queryFn: ({ signal }) => api.getFileContent(path!, signal),
     enabled: !!path,
   })
 }
@@ -34,14 +34,14 @@ export function useFileContent(path: string | null) {
 export function useCommits(path?: string, limit = 50, offset = 0, excludeAuthors?: string[]) {
   return useQuery({
     queryKey: ['commits', path, limit, offset, excludeAuthors],
-    queryFn: () => api.getCommits(path, limit, offset, excludeAuthors),
+    queryFn: ({ signal }) => api.getCommits(path, limit, offset, excludeAuthors, signal),
   })
 }
 
 export function useDiff(toCommit: string | null, fromCommit?: string, path?: string, excludeAuthors?: string[]) {
   return useQuery({
     queryKey: ['diff', toCommit, fromCommit, path, excludeAuthors],
-    queryFn: () => api.getDiff(toCommit!, fromCommit, path, excludeAuthors),
+    queryFn: ({ signal }) => api.getDiff(toCommit!, fromCommit, path, excludeAuthors, signal),
     enabled: !!toCommit,
   })
 }
@@ -49,14 +49,14 @@ export function useDiff(toCommit: string | null, fromCommit?: string, path?: str
 export function useDirectoryInfo(path?: string) {
   return useQuery({
     queryKey: ['directoryInfo', path],
-    queryFn: () => api.getDirectoryInfo(path),
+    queryFn: ({ signal }) => api.getDirectoryInfo(path, signal),
   })
 }
 
 export function useDirectoryListing(path?: string) {
   return useQuery({
     queryKey: ['directoryListing', path],
-    queryFn: () => api.listDirectory(path),
+    queryFn: ({ signal }) => api.listDirectory(path, signal),
   })
 }
 
@@ -65,7 +65,7 @@ export function useSwitchRepository() {
   const resetSelection = useSelectionStore((state) => state.resetSelection)
 
   return useMutation({
-    mutationFn: api.switchRepository,
+    mutationFn: (path: string) => api.switchRepository(path),
     onSuccess: () => {
       resetSelection()
       // Invalidate all repository-related queries to force refetch

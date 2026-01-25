@@ -2,8 +2,8 @@ use git2::{DiffOptions, Repository, Sort};
 use std::collections::{HashMap, HashSet};
 
 use crate::error::Result;
-use crate::git::repository::{commit_to_info, format_relative_time, GitRepository};
-use crate::models::{AuthorInfo, CommitDetail, CommitInfo, CommitListResponse, ContributorInfo, DirectoryInfo};
+use crate::git::repository::{commit_to_info, GitRepository};
+use crate::models::{CommitInfo, CommitListResponse, ContributorInfo, DirectoryInfo};
 
 pub fn get_last_commit_for_path(repo: &Repository, path: &str) -> Result<CommitInfo> {
     let mut revwalk = repo.revwalk()?;
@@ -138,6 +138,7 @@ fn commit_touches_path(repo: &Repository, commit: &git2::Commit, path: &str) -> 
 }
 
 impl GitRepository {
+    /// Get commits using the cache for fast repeated queries
     pub fn get_commits(
         &self,
         path: Option<&str>,
@@ -145,94 +146,9 @@ impl GitRepository {
         offset: usize,
         exclude_authors: Option<&[String]>,
     ) -> Result<CommitListResponse> {
-        self.with_repo(|repo| {
-            let mut revwalk = repo.revwalk()?;
-            revwalk.set_sorting(Sort::TIME)?;
-            revwalk.push_head()?;
-
-            let mut commits = Vec::new();
-            let mut filtered_count = 0;
-            let mut total = 0;
-            let mut filtered_total = 0;
-            let mut contributors_map: HashMap<String, String> = HashMap::new();
-
-            let exclude_set: HashSet<&str> = exclude_authors
-                .map(|authors| authors.iter().map(|s| s.as_str()).collect())
-                .unwrap_or_default();
-
-            for oid in revwalk {
-                let oid = oid?;
-                let commit = repo.find_commit(oid)?;
-
-                // If path filter is specified, check if commit touches the path
-                if let Some(p) = path {
-                    if !p.is_empty() && !commit_touches_path(repo, &commit, p)? {
-                        continue;
-                    }
-                }
-
-                let author = commit.author();
-                let author_email = author.email().unwrap_or("").to_string();
-                let author_name = author.name().unwrap_or("Unknown").to_string();
-
-                // Track all contributors (before author filter)
-                contributors_map
-                    .entry(author_email.clone())
-                    .or_insert(author_name.clone());
-
-                total += 1;
-
-                // Check if author is excluded
-                if exclude_set.contains(author_email.as_str()) {
-                    continue;
-                }
-
-                filtered_total += 1;
-
-                if filtered_count < offset {
-                    filtered_count += 1;
-                    continue;
-                }
-
-                if commits.len() >= limit {
-                    continue; // Keep counting filtered_total
-                }
-
-                let committer = commit.committer();
-
-                commits.push(CommitDetail {
-                    oid: commit.id().to_string(),
-                    message: commit.message().unwrap_or("").trim().to_string(),
-                    author: AuthorInfo {
-                        name: author_name,
-                        email: author_email,
-                    },
-                    committer: AuthorInfo {
-                        name: committer.name().unwrap_or("Unknown").to_string(),
-                        email: committer.email().unwrap_or("").to_string(),
-                    },
-                    timestamp: commit.time().seconds(),
-                    relative_time: format_relative_time(commit.time().seconds()),
-                    parent_count: commit.parent_count(),
-                    parents: commit.parent_ids().map(|id| id.to_string()).collect(),
-                });
-
-                filtered_count += 1;
-            }
-
-            // Convert contributors map to vec
-            let contributors: Vec<AuthorInfo> = contributors_map
-                .into_iter()
-                .map(|(email, name)| AuthorInfo { name, email })
-                .collect();
-
-            Ok(CommitListResponse {
-                commits,
-                total,
-                filtered_total,
-                has_more: filtered_total > offset + limit,
-                contributors,
-            })
+        self.with_cache(|cache, repo| {
+            let path_key = path.unwrap_or("");
+            cache.get_commits_for_path(repo, path_key, limit, offset, exclude_authors)
         })
     }
 

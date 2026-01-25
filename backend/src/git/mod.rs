@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod diff;
 pub mod history;
 pub mod repository;

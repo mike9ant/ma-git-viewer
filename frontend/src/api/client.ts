@@ -10,8 +10,12 @@ import type {
 
 const API_BASE = '/api/v1'
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
+/**
+ * Fetch JSON with optional abort signal for request cancellation.
+ * When the signal is aborted, the request is cancelled and an AbortError is thrown.
+ */
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { signal })
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(error.error || 'Request failed')
@@ -20,25 +24,25 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export const api = {
-  getRepository: () =>
-    fetchJson<RepositoryInfo>(`${API_BASE}/repository`),
+  getRepository: (signal?: AbortSignal) =>
+    fetchJson<RepositoryInfo>(`${API_BASE}/repository`, signal),
 
-  getTree: (path?: string, includeLastCommit = true) => {
+  getTree: (path?: string, includeLastCommit = true, signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
     params.set('include_last_commit', String(includeLastCommit))
-    return fetchJson<TreeEntry[]>(`${API_BASE}/repository/tree?${params}`)
+    return fetchJson<TreeEntry[]>(`${API_BASE}/repository/tree?${params}`, signal)
   },
 
-  getFullTree: () =>
-    fetchJson<FullTreeEntry[]>(`${API_BASE}/repository/tree/full`),
+  getFullTree: (signal?: AbortSignal) =>
+    fetchJson<FullTreeEntry[]>(`${API_BASE}/repository/tree/full`, signal),
 
-  getFileContent: (path: string) => {
+  getFileContent: (path: string, signal?: AbortSignal) => {
     const params = new URLSearchParams({ path })
-    return fetchJson<string>(`${API_BASE}/repository/file?${params}`)
+    return fetchJson<string>(`${API_BASE}/repository/file?${params}`, signal)
   },
 
-  getCommits: (path?: string, limit = 50, offset = 0, excludeAuthors?: string[]) => {
+  getCommits: (path?: string, limit = 50, offset = 0, excludeAuthors?: string[], signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
     params.set('limit', String(limit))
@@ -46,36 +50,37 @@ export const api = {
     if (excludeAuthors && excludeAuthors.length > 0) {
       params.set('exclude_authors', excludeAuthors.join(','))
     }
-    return fetchJson<CommitListResponse>(`${API_BASE}/repository/commits?${params}`)
+    return fetchJson<CommitListResponse>(`${API_BASE}/repository/commits?${params}`, signal)
   },
 
-  getDiff: (toCommit: string, fromCommit?: string, path?: string, excludeAuthors?: string[]) => {
+  getDiff: (toCommit: string, fromCommit?: string, path?: string, excludeAuthors?: string[], signal?: AbortSignal) => {
     const params = new URLSearchParams({ to: toCommit })
     if (fromCommit) params.set('from', fromCommit)
     if (path) params.set('path', path)
     if (excludeAuthors && excludeAuthors.length > 0) {
       params.set('exclude_authors', excludeAuthors.join(','))
     }
-    return fetchJson<DiffResponse>(`${API_BASE}/repository/diff?${params}`)
+    return fetchJson<DiffResponse>(`${API_BASE}/repository/diff?${params}`, signal)
   },
 
-  getDirectoryInfo: (path?: string) => {
+  getDirectoryInfo: (path?: string, signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
-    return fetchJson<DirectoryInfo>(`${API_BASE}/repository/directory-info?${params}`)
+    return fetchJson<DirectoryInfo>(`${API_BASE}/repository/directory-info?${params}`, signal)
   },
 
-  listDirectory: (path?: string) => {
+  listDirectory: (path?: string, signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (path) params.set('path', path)
-    return fetchJson<DirectoryListing>(`${API_BASE}/filesystem/list?${params}`)
+    return fetchJson<DirectoryListing>(`${API_BASE}/filesystem/list?${params}`, signal)
   },
 
-  switchRepository: async (path: string): Promise<RepositoryInfo> => {
+  switchRepository: async (path: string, signal?: AbortSignal): Promise<RepositoryInfo> => {
     const response = await fetch(`${API_BASE}/filesystem/switch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),
+      signal,
     })
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }))

@@ -3,11 +3,14 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::error::{AppError, Result};
+use crate::git::cache::CommitCache;
 use crate::models::{CommitInfo, RepositoryInfo};
 
 pub struct GitRepository {
     pub repo: Mutex<Repository>,
     pub path: String,
+    /// Commit cache for fast history queries (lazily initialized)
+    pub cache: Mutex<Option<CommitCache>>,
 }
 
 impl GitRepository {
@@ -18,7 +21,38 @@ impl GitRepository {
         Ok(Self {
             repo: Mutex::new(repo),
             path: path_str,
+            cache: Mutex::new(None),
         })
+    }
+
+    /// Get or initialize the commit cache, rebuilding if HEAD has changed
+    pub fn with_cache<F, T>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut CommitCache, &Repository) -> Result<T>,
+    {
+        let repo = self.repo.lock().map_err(|_| AppError::Internal("Repo lock poisoned".to_string()))?;
+        let mut cache_guard = self.cache.lock().map_err(|_| AppError::Internal("Cache lock poisoned".to_string()))?;
+
+        // Check if we need to (re)build the cache
+        let needs_rebuild = match cache_guard.as_ref() {
+            None => true,
+            Some(cache) => !cache.is_valid(&repo),
+        };
+
+        if needs_rebuild {
+            tracing::info!("Building commit cache...");
+            let start = std::time::Instant::now();
+            let new_cache = CommitCache::build(&repo)?;
+            tracing::info!(
+                "Cache built: {} commits in {:?}",
+                new_cache.all_commits.len(),
+                start.elapsed()
+            );
+            *cache_guard = Some(new_cache);
+        }
+
+        let cache = cache_guard.as_mut().unwrap();
+        f(cache, &repo)
     }
 
     pub fn info(&self) -> Result<RepositoryInfo> {
