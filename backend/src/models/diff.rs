@@ -1,4 +1,13 @@
 use serde::{Deserialize, Serialize};
+use super::AuthorInfo;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileAuthorInfo {
+    pub email: String,
+    pub name: String,
+    pub commit_count: usize,
+    pub last_commit_timestamp: i64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiffResponse {
@@ -7,6 +16,9 @@ pub struct DiffResponse {
     pub path: Option<String>,
     pub files: Vec<FileDiff>,
     pub stats: DiffStats,
+    pub contributors: Vec<AuthorInfo>,
+    pub total_files: usize,
+    pub filtered_files: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +30,8 @@ pub struct FileDiff {
     pub old_content: Option<String>,
     pub new_content: Option<String>,
     pub is_binary: bool,
+    pub authors: Vec<FileAuthorInfo>,
+    pub biggest_change_author: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

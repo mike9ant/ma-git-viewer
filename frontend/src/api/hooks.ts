@@ -38,10 +38,10 @@ export function useCommits(path?: string, limit = 50, offset = 0, excludeAuthors
   })
 }
 
-export function useDiff(toCommit: string | null, fromCommit?: string, path?: string) {
+export function useDiff(toCommit: string | null, fromCommit?: string, path?: string, excludeAuthors?: string[]) {
   return useQuery({
-    queryKey: ['diff', toCommit, fromCommit, path],
-    queryFn: () => api.getDiff(toCommit!, fromCommit, path),
+    queryKey: ['diff', toCommit, fromCommit, path, excludeAuthors],
+    queryFn: () => api.getDiff(toCommit!, fromCommit, path, excludeAuthors),
     enabled: !!toCommit,
   })
 }

@@ -1,13 +1,29 @@
-import { useState, useRef, useEffect, memo, useCallback } from 'react'
+import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react'
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import { useDiff } from '@/api/hooks'
 import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4 } from 'lucide-react'
+import { ContributorFilter } from '@/components/bottom-panel/ContributorFilter'
+import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff } from '@/api/types'
+
+const DIFF_EXCLUDED_AUTHORS_KEY = 'git-viewer-diff-excluded-authors'
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = now - timestamp
+
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`
+  if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`
+  return `${Math.floor(diff / 31536000)}y ago`
+}
 
 function abbreviateFilename(path: string, maxLength: number): string {
   if (path.length <= maxLength) return path
@@ -75,6 +91,7 @@ const FileDiffContent = memo(function FileDiffContent({
   collapsed,
   compact,
   index,
+  isGrayedOut,
   onToggleCollapse
 }: {
   file: FileDiff
@@ -82,12 +99,20 @@ const FileDiffContent = memo(function FileDiffContent({
   collapsed: boolean
   compact: boolean
   index: number
+  isGrayedOut?: boolean
   onToggleCollapse: (index: number) => void
 }) {
   const fileName = file.new_path || file.old_path || 'unknown'
+  const authors = file.authors || []
+  const biggestAuthor = authors.length > 0 ? authors[0] : null
+
+  // Build tooltip with all authors
+  const authorTooltip = authors.length > 0
+    ? authors.map(a => `${a.name} (${a.commit_count} commit${a.commit_count > 1 ? 's' : ''}) - ${formatRelativeTime(a.last_commit_timestamp)}`).join('\n')
+    : undefined
 
   return (
-    <>
+    <div className={cn(isGrayedOut && "opacity-50")}>
       {/* File header */}
       <button
         onClick={() => onToggleCollapse(index)}
@@ -106,6 +131,19 @@ const FileDiffContent = memo(function FileDiffContent({
         {file.old_path && file.new_path && file.old_path !== file.new_path && (
           <span className={cn("text-gray-500", compact ? "text-[10px]" : "text-xs")}>
             (from {file.old_path})
+          </span>
+        )}
+        {biggestAuthor && (
+          <span
+            className="flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-purple-50 border border-purple-200 text-purple-700"
+            title={authorTooltip}
+          >
+            <User className="h-3 w-3" />
+            {biggestAuthor.name.split(' ')[0]}
+            <span className="text-purple-500">
+              ({biggestAuthor.commit_count} {biggestAuthor.commit_count === 1 ? 'commit' : 'commits'}) · {formatRelativeTime(biggestAuthor.last_commit_timestamp)}
+            </span>
+            {authors.length > 1 && <span className="text-purple-400">+{authors.length - 1}</span>}
           </span>
         )}
         <span
@@ -173,7 +211,7 @@ const FileDiffContent = memo(function FileDiffContent({
           </div>
         )
       )}
-    </>
+    </div>
   )
 })
 
@@ -184,11 +222,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     diffFilesCollapsedByDefault,
     diffFilePanelSize: storedFilePanelSize,
     diffCompactMode: compactMode,
+    diffFilterMode: filterMode,
     setDiffFilePanelOpen: setFilePanelOpen,
     setDiffSplitView: setSplitView,
     setDiffFilesCollapsedByDefault,
     setDiffFilePanelSize: setFilePanelSize,
     setDiffCompactMode: setCompactMode,
+    setDiffFilterMode: setFilterMode,
   } = useSettingsStore()
 
   // Ensure panel size is within valid bounds
@@ -197,6 +237,16 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set())
   const [filePanelWidthPx, setFilePanelWidthPx] = useState<number>(200)
+  const [filterEnabled, setFilterEnabled] = useState(false)
+  const [excludedAuthors, setExcludedAuthors] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(DIFF_EXCLUDED_AUTHORS_KEY)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
   const filePanelRef = useRef<HTMLDivElement | null>(null)
   const selectedFileIndexRef = useRef<number | null>(null)
   const fileRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -205,7 +255,37 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
   const isUserScrollingRef = useRef(true)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
-  const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path)
+
+  // Determine which authors to exclude based on filter state and mode
+  const effectiveExcludedAuthors = filterEnabled && filterMode === 'hide' ? excludedAuthors : undefined
+  const { data: diff, isLoading, error } = useDiff(toCommit, fromCommit, path, effectiveExcludedAuthors)
+
+  // Save excluded authors to localStorage
+  useEffect(() => {
+    localStorage.setItem(DIFF_EXCLUDED_AUTHORS_KEY, JSON.stringify(excludedAuthors))
+  }, [excludedAuthors])
+
+  // Compute processed files for gray mode (filtering done client-side)
+  const { processedFiles, grayedOutIndices } = useMemo(() => {
+    if (!diff) return { processedFiles: [], grayedOutIndices: new Set<number>() }
+
+    const files = diff.files
+    const grayedOut = new Set<number>()
+
+    if (filterEnabled && filterMode === 'gray' && excludedAuthors.length > 0) {
+      files.forEach((file, index) => {
+        const authors = file.authors || []
+        // Gray out if ALL authors are excluded (or file has no authors)
+        const allExcluded = authors.length === 0 ||
+          authors.every(a => excludedAuthors.includes(a.email))
+        if (allExcluded) {
+          grayedOut.add(index)
+        }
+      })
+    }
+
+    return { processedFiles: files, grayedOutIndices: grayedOut }
+  }, [diff, filterEnabled, filterMode, excludedAuthors])
 
   // Initialize collapsed state based on settings when diff loads
   useEffect(() => {
@@ -236,15 +316,15 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
     })
   }, [])
 
-  const allCollapsed = diff ? collapsedFiles.size === diff.files.length : false
+  const allCollapsed = processedFiles.length > 0 ? collapsedFiles.size === processedFiles.length : false
 
   const toggleAllCollapsed = () => {
-    if (!diff) return
+    if (processedFiles.length === 0) return
     if (allCollapsed) {
       setCollapsedFiles(new Set())
       setDiffFilesCollapsedByDefault(false)
     } else {
-      setCollapsedFiles(new Set(diff.files.map((_, i) => i)))
+      setCollapsedFiles(new Set(processedFiles.map((_, i) => i)))
       setDiffFilesCollapsedByDefault(true)
     }
   }
@@ -256,15 +336,15 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   // Reset refs array when files change
   useEffect(() => {
-    if (diff) {
-      fileRefs.current = fileRefs.current.slice(0, diff.files.length)
+    if (processedFiles.length > 0) {
+      fileRefs.current = fileRefs.current.slice(0, processedFiles.length)
       visibilityMapRef.current.clear()
     }
-  }, [diff])
+  }, [processedFiles])
 
   // Set up IntersectionObserver to track file visibility
   useEffect(() => {
-    if (!diff || !scrollContainerRef.current) return
+    if (processedFiles.length === 0 || !scrollContainerRef.current) return
 
     const scrollContainer = scrollContainerRef.current
 
@@ -331,7 +411,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
         clearTimeout(updateTimeoutRef.current)
       }
     }
-  }, [diff])
+  }, [processedFiles])
 
   const scrollToFile = (index: number) => {
     isUserScrollingRef.current = false
@@ -361,6 +441,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
 
   if (!diff) return null
 
+  // Calculate display counts
+  const totalFiles = diff.total_files ?? diff.files.length
+  const displayedFiles = filterEnabled && filterMode === 'hide'
+    ? (diff.filtered_files ?? diff.files.length)
+    : (filterEnabled && filterMode === 'gray' ? processedFiles.length - grayedOutIndices.size : processedFiles.length)
+  const isFiltering = filterEnabled && excludedAuthors.length > 0
+
   return (
     <div className="h-full flex flex-col">
       {/* Stats - fixed header */}
@@ -379,7 +466,16 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
           )}
         </Button>
         <span className="text-sm">
-          <span className="font-medium">{diff.stats.files_changed}</span> files changed
+          {isFiltering ? (
+            <>
+              <span className="font-medium">{displayedFiles}</span>
+              <span className="text-gray-500"> of {totalFiles}</span> files
+            </>
+          ) : (
+            <>
+              <span className="font-medium">{diff.stats.files_changed}</span> files changed
+            </>
+          )}
         </span>
         <span className="text-sm text-green-600">
           +{diff.stats.insertions} insertions
@@ -388,6 +484,43 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
           -{diff.stats.deletions} deletions
         </span>
         <div className="ml-auto flex items-center gap-1">
+          {/* Contributor Filter */}
+          {diff.contributors && diff.contributors.length > 0 && (
+            <>
+              <ContributorFilter
+                contributors={diff.contributors}
+                excludedAuthors={excludedAuthors}
+                filterEnabled={filterEnabled}
+                onFilterEnabledChange={setFilterEnabled}
+                onExcludedAuthorsChange={setExcludedAuthors}
+              />
+              {/* Filter mode toggle - only visible when filter is active */}
+              {filterEnabled && diff.contributors && excludedAuthors.some(e => diff.contributors.some(c => c.email === e)) && (
+                <>
+                  <div className="w-px h-4 bg-gray-300 mx-1" />
+                  <Button
+                    variant={filterMode === 'hide' ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setFilterMode('hide')}
+                    className="h-7 px-2"
+                    title="Hide filtered files"
+                  >
+                    <EyeOff className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={filterMode === 'gray' ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setFilterMode('gray')}
+                    className="h-7 px-2"
+                    title="Gray out filtered files"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              <div className="w-px h-4 bg-gray-300 mx-1" />
+            </>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -465,12 +598,13 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
           >
             <ScrollArea className="h-full border-r border-gray-200 bg-gray-50" ref={filePanelRef}>
               <div className="py-2">
-                {diff.files.map((file, index) => {
+                {processedFiles.map((file, index) => {
                   const fileName = file.new_path || file.old_path || 'unknown'
                   // Calculate max chars: panel width minus padding (24px), icon (16px), gap (8px)
                   // Divide by ~7.2px per character for text-xs monospace font
                   const maxChars = Math.max(15, Math.floor((filePanelWidthPx - 48) / 7.2))
                   const displayName = abbreviateFilename(fileName, maxChars)
+                  const isGrayedOut = grayedOutIndices.has(index)
 
                   return (
                     <button
@@ -478,7 +612,8 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                       onClick={() => scrollToFile(index)}
                       className={cn(
                         "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-100 transition-colors",
-                        selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200"
+                        selectedFileIndex === index && "bg-blue-200 hover:bg-blue-200",
+                        isGrayedOut && "opacity-50"
                       )}
                       title={fileName}
                     >
@@ -501,7 +636,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
           <Panel id="diff-content" defaultSize={`${100 - filePanelSize}%`} minSize="30%">
             <ScrollArea className="h-full" viewportRef={scrollContainerRef}>
                 <div className="p-4 space-y-6">
-                  {diff.files.map((file, index) => (
+                  {processedFiles.map((file, index) => (
                     <div
                       key={index}
                       ref={(el) => { fileRefs.current[index] = el }}
@@ -514,15 +649,16 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                       <FileDiffContent
                         file={file}
                         splitView={splitView}
-                        collapsed={collapsedFiles.has(index)}
+                        collapsed={collapsedFiles.has(index) || grayedOutIndices.has(index)}
                         compact={compactMode}
                         index={index}
+                        isGrayedOut={grayedOutIndices.has(index)}
                         onToggleCollapse={toggleFileCollapsed}
                       />
                     </div>
                   ))}
 
-                  {diff.files.length === 0 && (
+                  {processedFiles.length === 0 && (
                     <div className="flex items-center justify-center py-8 text-gray-500">
                       No changes in this diff
                     </div>
@@ -534,7 +670,7 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
       ) : (
         <ScrollArea className="flex-1 min-h-0" viewportRef={scrollContainerRef}>
             <div className="p-4 space-y-6">
-              {diff.files.map((file, index) => (
+              {processedFiles.map((file, index) => (
                 <div
                   key={index}
                   ref={(el) => { fileRefs.current[index] = el }}
@@ -547,15 +683,16 @@ export function DiffViewer({ toCommit, fromCommit, path }: DiffViewerProps) {
                   <FileDiffContent
                     file={file}
                     splitView={splitView}
-                    collapsed={collapsedFiles.has(index)}
+                    collapsed={collapsedFiles.has(index) || grayedOutIndices.has(index)}
                     compact={compactMode}
                     index={index}
+                    isGrayedOut={grayedOutIndices.has(index)}
                     onToggleCollapse={toggleFileCollapsed}
                   />
                 </div>
               ))}
 
-              {diff.files.length === 0 && (
+              {processedFiles.length === 0 && (
                 <div className="flex items-center justify-center py-8 text-gray-500">
                   No changes in this diff
                 </div>

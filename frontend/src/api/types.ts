@@ -72,12 +72,22 @@ export interface CommitListResponse {
   contributors: AuthorInfo[]
 }
 
+export interface FileAuthorInfo {
+  email: string
+  name: string
+  commit_count: number
+  last_commit_timestamp: number
+}
+
 export interface DiffResponse {
   from_commit?: string
   to_commit: string
   path?: string
   files: FileDiff[]
   stats: DiffStats
+  contributors: AuthorInfo[]
+  total_files: number
+  filtered_files: number
 }
 
 export interface FileDiff {
@@ -88,6 +98,8 @@ export interface FileDiff {
   old_content?: string
   new_content?: string
   is_binary: boolean
+  authors: FileAuthorInfo[]
+  biggest_change_author?: string
 }
 
 export interface DiffHunk {

@@ -1,9 +1,10 @@
-use git2::{Delta, DiffOptions, Repository};
+use git2::{Delta, DiffOptions, Repository, Sort};
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::{AppError, Result};
 use crate::git::repository::GitRepository;
-use crate::models::{DiffHunk, DiffLine, DiffResponse, DiffStats, DiffStatus, FileDiff, LineType};
+use crate::models::{AuthorInfo, DiffHunk, DiffLine, DiffResponse, DiffStats, DiffStatus, FileAuthorInfo, FileDiff, LineType};
 
 impl GitRepository {
     pub fn get_diff(
@@ -144,10 +145,53 @@ impl GitRepository {
                     old_content,
                     new_content,
                     is_binary,
+                    authors: Vec::new(),
+                    biggest_change_author: None,
                 });
 
                 stats.files_changed += 1;
             }
+
+            // Get author information for files between the commits
+            let from_oid = from_commit_owned.as_ref()
+                .and_then(|s| git2::Oid::from_str(s).ok());
+
+            let file_authors = get_file_authors_between_commits(
+                repo,
+                from_oid,
+                to_oid,
+                path_owned.as_deref(),
+            )?;
+
+            // Collect all unique contributors
+            let mut all_contributors: HashMap<String, AuthorInfo> = HashMap::new();
+
+            // Enrich files with author info
+            for file in &mut files {
+                let file_path = file.new_path.as_ref()
+                    .or(file.old_path.as_ref());
+
+                if let Some(path) = file_path {
+                    if let Some(authors) = file_authors.get(path) {
+                        file.authors = authors.clone();
+                        file.biggest_change_author = authors.first().map(|a| a.email.clone());
+
+                        // Add to contributors list
+                        for author in authors {
+                            all_contributors.entry(author.email.clone()).or_insert_with(|| AuthorInfo {
+                                name: author.name.clone(),
+                                email: author.email.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Sort contributors by name
+            let mut contributors: Vec<AuthorInfo> = all_contributors.into_values().collect();
+            contributors.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+            let total_files = files.len();
 
             Ok(DiffResponse {
                 from_commit: from_commit_owned,
@@ -155,6 +199,9 @@ impl GitRepository {
                 path: path_owned,
                 files,
                 stats,
+                contributors,
+                total_files,
+                filtered_files: total_files,
             })
         })
     }
@@ -179,4 +226,114 @@ fn get_blob_content(repo: &Repository, tree: &git2::Tree, path: &str) -> Result<
 
     String::from_utf8(blob.content().to_vec())
         .map_err(|_| AppError::Internal("File is not valid UTF-8".to_string()))
+}
+
+/// Track author info for a specific file during intermediate commits analysis
+#[derive(Debug, Clone)]
+struct AuthorCommitInfo {
+    email: String,
+    name: String,
+    commit_count: usize,
+    last_commit_timestamp: i64,
+}
+
+/// Walk commits between from_commit and to_commit, building a map of which authors touched each file
+fn get_file_authors_between_commits(
+    repo: &Repository,
+    from_oid: Option<git2::Oid>,
+    to_oid: git2::Oid,
+    path_filter: Option<&str>,
+) -> Result<HashMap<String, Vec<FileAuthorInfo>>> {
+    let mut file_authors: HashMap<String, HashMap<String, AuthorCommitInfo>> = HashMap::new();
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+    revwalk.push(to_oid)?;
+
+    // If we have a from_oid, hide it and its ancestors
+    if let Some(from) = from_oid {
+        revwalk.hide(from)?;
+    }
+
+    for oid_result in revwalk {
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+
+        // Get author info
+        let author = commit.author();
+        let author_email = author.email().unwrap_or("").to_string();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let timestamp = commit.time().seconds();
+
+        // Get parent tree (or empty tree for root commits)
+        let parent_tree = if commit.parent_count() > 0 {
+            Some(commit.parent(0)?.tree()?)
+        } else {
+            None
+        };
+
+        let commit_tree = commit.tree()?;
+
+        // Diff this commit against its parent
+        let mut diff_opts = DiffOptions::new();
+        if let Some(p) = path_filter {
+            if !p.is_empty() {
+                diff_opts.pathspec(p);
+            }
+        }
+
+        let diff = repo.diff_tree_to_tree(
+            parent_tree.as_ref(),
+            Some(&commit_tree),
+            Some(&mut diff_opts),
+        )?;
+
+        // Track which files this commit touched
+        for delta in diff.deltas() {
+            let file_path = delta.new_file().path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().to_string());
+
+            if let Some(path) = file_path {
+                let author_map = file_authors.entry(path).or_insert_with(HashMap::new);
+
+                let entry = author_map.entry(author_email.clone()).or_insert_with(|| AuthorCommitInfo {
+                    email: author_email.clone(),
+                    name: author_name.clone(),
+                    commit_count: 0,
+                    last_commit_timestamp: timestamp,
+                });
+
+                entry.commit_count += 1;
+                // Keep the most recent timestamp
+                if timestamp > entry.last_commit_timestamp {
+                    entry.last_commit_timestamp = timestamp;
+                }
+            }
+        }
+    }
+
+    // Convert to final format, sorting by commit count descending
+    let mut result: HashMap<String, Vec<FileAuthorInfo>> = HashMap::new();
+
+    for (path, author_map) in file_authors {
+        let mut authors: Vec<FileAuthorInfo> = author_map.into_values()
+            .map(|info| FileAuthorInfo {
+                email: info.email,
+                name: info.name,
+                commit_count: info.commit_count,
+                last_commit_timestamp: info.last_commit_timestamp,
+            })
+            .collect();
+
+        // Sort by commit count descending, then by timestamp descending
+        authors.sort_by(|a, b| {
+            b.commit_count.cmp(&a.commit_count)
+                .then_with(|| b.last_commit_timestamp.cmp(&a.last_commit_timestamp))
+        });
+
+        result.insert(path, authors);
+    }
+
+    Ok(result)
 }

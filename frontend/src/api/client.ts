@@ -49,10 +49,13 @@ export const api = {
     return fetchJson<CommitListResponse>(`${API_BASE}/repository/commits?${params}`)
   },
 
-  getDiff: (toCommit: string, fromCommit?: string, path?: string) => {
+  getDiff: (toCommit: string, fromCommit?: string, path?: string, excludeAuthors?: string[]) => {
     const params = new URLSearchParams({ to: toCommit })
     if (fromCommit) params.set('from', fromCommit)
     if (path) params.set('path', path)
+    if (excludeAuthors && excludeAuthors.length > 0) {
+      params.set('exclude_authors', excludeAuthors.join(','))
+    }
     return fetchJson<DiffResponse>(`${API_BASE}/repository/diff?${params}`)
   },
 
