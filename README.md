@@ -2,7 +2,8 @@
 
 A full-stack web application for visually exploring Git repositories. Browse repository structure, view file contents, examine commit history, and compare different versions of files through an intuitive UI.
 
-The purpose of this tool is to enable easy analysis of history per folder. The viewer helps answer the question: What are all changes made in **this folder** between these days/by these users? Just navigate to folder you want, filter by desired users, click on commits of interest to get a user+ path filtered, easy to read Diff.
+The purpose of this tool is to enable easy analysis of history per folder. The viewer helps answer the question: What are all changes made in **this folder** between these days/by these users? Just navigate to folder you want, filter by desired users, click on commits of interest to get a user + path filtered, easy to read diff. The tool flattens many commits into one, filtered view.
+
 TBD: Optimizations needed for long diffs.
 
 ## Features
