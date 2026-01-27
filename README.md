@@ -2,6 +2,9 @@
 
 A full-stack web application for visually exploring Git repositories. Browse repository structure, view file contents, examine commit history, and compare different versions of files through an intuitive UI.
 
+The purpose of this tool is to enable easy analysis of history per folder. The viewer helps answer the question: What are all changes made in **this folder** between these days/by these users? Just navigate to folder you want, filter by desired users, click on commits of interest to get a user+ path filtered, easy to read Diff.
+TBD: Optimizations needed for long diffs.
+
 ## Features
 
 - **File Tree Navigation**: Expandable directory tree showing complete repository structure
@@ -131,7 +134,8 @@ cargo watch -x 'run -- /path/to/repo'
 
 ## License
 
-[Add your license here]
+Copyright 2026, Michael Antonov.
+MIT License.
 
 ---
 
