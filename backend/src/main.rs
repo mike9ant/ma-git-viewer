@@ -97,13 +97,40 @@ fn remove_pid_file() {
     let _ = fs::remove_file(get_pid_file_path());
 }
 
+#[cfg(unix)]
 fn is_process_running(pid: u32) -> bool {
     // On Unix, sending signal 0 checks if process exists
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
+#[cfg(windows)]
+fn is_process_running(pid: u32) -> bool {
+    use std::process::Command;
+    // On Windows, check if process exists using tasklist
+    Command::new("tasklist")
+        .args(&["/FI", &format!("PID eq {}", pid), "/NH"])
+        .output()
+        .map(|output| {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            output_str.contains(&pid.to_string())
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(unix)]
 fn kill_process(pid: u32) -> bool {
     unsafe { libc::kill(pid as i32, libc::SIGTERM) == 0 }
+}
+
+#[cfg(windows)]
+fn kill_process(pid: u32) -> bool {
+    use std::process::Command;
+    // On Windows, use taskkill
+    Command::new("taskkill")
+        .args(&["/PID", &pid.to_string(), "/F"])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }
 
 fn handle_status() {
