@@ -10,7 +10,7 @@
  */
 
 import * as React from 'react'
-import { GitBranch, Check, Loader2, ChevronRight, ChevronDown, FolderGit } from 'lucide-react'
+import { GitBranch, Check, Loader2, ChevronRight, ChevronDown, FolderGit, Search, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -25,6 +25,17 @@ import {
 import { useBranches, useCheckoutBranch, useCheckoutRemoteBranch, useRepository } from '@/api/hooks'
 import { cn } from '@/lib/utils'
 import type { BranchInfo } from '@/api/types'
+
+/**
+ * Filter branches by search query (case-insensitive substring match)
+ */
+function filterBranches(branches: BranchInfo[], query: string): BranchInfo[] {
+  if (!query.trim()) return branches
+  const normalized = query.toLowerCase().trim()
+  return branches.filter(branch =>
+    branch.name.toLowerCase().includes(normalized)
+  )
+}
 
 interface TreeNode {
   name: string
@@ -184,16 +195,26 @@ export function BranchSwitcher() {
   const [selectedRemote, setSelectedRemote] = React.useState<BranchInfo | null>(null)
   const [localName, setLocalName] = React.useState('')
   const [checkoutError, setCheckoutError] = React.useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState('')
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const { data: repo } = useRepository()
   const { data: branches, isLoading } = useBranches()
   const checkout = useCheckoutBranch()
   const checkoutRemote = useCheckoutRemoteBranch()
 
-  // Clear checkout error when popover closes
+  // Clear checkout error and search when popover closes
   React.useEffect(() => {
     if (!open) {
+      setSearchQuery('')
       checkout.reset()
+    }
+  }, [open])
+
+  // Auto-focus search input when popover opens
+  React.useEffect(() => {
+    if (open && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 0)
     }
   }, [open])
 
@@ -207,9 +228,19 @@ export function BranchSwitcher() {
     [branches]
   )
 
+  const filteredLocalBranches = React.useMemo(
+    () => filterBranches(localBranches, searchQuery),
+    [localBranches, searchQuery]
+  )
+
+  const filteredRemoteBranches = React.useMemo(
+    () => filterBranches(remoteBranches, searchQuery),
+    [remoteBranches, searchQuery]
+  )
+
   const remoteTree = React.useMemo(
-    () => buildRemoteTree(remoteBranches),
-    [remoteBranches]
+    () => buildRemoteTree(filteredRemoteBranches),
+    [filteredRemoteBranches]
   )
 
   const handleLocalBranchClick = (branchName: string) => {
@@ -261,6 +292,21 @@ export function BranchSwitcher() {
     }
   }
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (searchQuery) {
+        setSearchQuery('')
+      } else {
+        setOpen(false)
+      }
+    } else if (e.key === 'Escape') {
+      if (searchQuery) {
+        setSearchQuery('')
+        e.stopPropagation()
+      }
+    }
+  }
+
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
@@ -278,6 +324,30 @@ export function BranchSwitcher() {
           <div className="space-y-2">
             <h4 className="font-medium text-sm">Switch Branch</h4>
 
+            <div className="mb-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search branches..."
+                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onKeyDown={handleSearchKeyDown}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <ScrollArea className="h-96">
               {isLoading ? (
                 <div className="flex items-center justify-center py-4">
@@ -286,13 +356,13 @@ export function BranchSwitcher() {
               ) : (
                 <div className="space-y-3">
                   {/* Local branches */}
-                  {localBranches.length > 0 && (
+                  {filteredLocalBranches.length > 0 && (
                     <div>
                       <div className="text-xs font-medium text-gray-500 px-2 py-1">
                         Local
                       </div>
                       <div className="space-y-0.5">
-                        {localBranches.map((branch) => (
+                        {filteredLocalBranches.map((branch) => (
                           <button
                             key={branch.name}
                             onClick={() => handleLocalBranchClick(branch.name)}
@@ -320,22 +390,41 @@ export function BranchSwitcher() {
                         Remote
                       </div>
                       <div className="space-y-0.5">
-                        {remoteTree.map((node, i) => (
-                          <RemoteTreeNode
-                            key={node.fullPath || `root-${node.name}-${i}`}
-                            node={node}
-                            depth={0}
-                            onSelectRemote={handleRemoteBranchClick}
-                            disabled={checkout.isPending || checkoutRemote.isPending}
-                          />
-                        ))}
+                        {searchQuery ? (
+                          // Flat list when searching
+                          filteredRemoteBranches.map((branch) => (
+                            <button
+                              key={branch.name}
+                              onClick={() => handleRemoteBranchClick(branch)}
+                              disabled={checkout.isPending || checkoutRemote.isPending}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left"
+                            >
+                              <GitBranch className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                              <span className="truncate flex-1">{branch.name}</span>
+                            </button>
+                          ))
+                        ) : (
+                          // Tree structure when not searching
+                          remoteTree.map((node, i) => (
+                            <RemoteTreeNode
+                              key={node.fullPath || `root-${node.name}-${i}`}
+                              node={node}
+                              depth={0}
+                              onSelectRemote={handleRemoteBranchClick}
+                              disabled={checkout.isPending || checkoutRemote.isPending}
+                            />
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {localBranches.length === 0 && remoteTree.length === 0 && (
+                  {filteredLocalBranches.length === 0 && remoteTree.length === 0 && (
                     <div className="text-sm text-gray-500 py-4 text-center">
-                      No branches found
+                      {searchQuery
+                        ? `No branches match "${searchQuery}"`
+                        : 'No branches found'
+                      }
                     </div>
                   )}
                 </div>
