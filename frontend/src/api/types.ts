@@ -164,3 +164,10 @@ export interface BlameResponse {
   commit: string
   lines: BlameLine[]
 }
+
+export interface WorkingTreeStatus {
+  has_changes: boolean
+  files_changed: number
+}
+
+export const WORKING_TREE = 'WORKING_TREE'

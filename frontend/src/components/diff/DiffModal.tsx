@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useSelectionStore } from '@/store/selectionStore'
+import { WORKING_TREE } from '@/api/types'
 import { DiffViewer } from './DiffViewer'
 
 function formatCompactDateTime(timestamp: number | null): string {
@@ -46,7 +47,12 @@ export function DiffModal() {
       >
         <DialogHeader>
           <DialogTitle>
-            {diffCommitFrom ? (
+            {diffCommitTo === WORKING_TREE ? (
+              <>
+                Uncommitted changes vs{' '}
+                <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">HEAD</code>
+              </>
+            ) : diffCommitFrom ? (
               <>
                 Comparing{' '}
                 <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">

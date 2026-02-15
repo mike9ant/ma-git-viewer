@@ -39,6 +39,7 @@ import { ContributorFilter } from '@/components/bottom-panel/ContributorFilter'
 import { FileEdit, FilePlus, FileMinus, FileX2, Columns2, Rows2, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Rows3, Rows4, User, EyeOff, Eye, GitCommitHorizontal, Loader2, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileDiff, BlameLine } from '@/api/types'
+import { WORKING_TREE } from '@/api/types'
 import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
 
 function formatRelativeTime(timestamp: number): string {
@@ -248,13 +249,14 @@ function useBlameData(
   const leftPath = file.old_path || file.new_path || null
   const rightPath = file.new_path || file.old_path || null
 
+  const isWorkingTree = toCommit === WORKING_TREE
   const { data: leftBlameData, isLoading: leftLoading } = useBlame(
-    !collapsed ? leftPath : null,
-    !collapsed ? (fromCommit || null) : null
+    !collapsed && !isWorkingTree ? leftPath : null,
+    !collapsed && !isWorkingTree ? (fromCommit || null) : null
   )
   const { data: rightBlameData, isLoading: rightLoading } = useBlame(
-    !collapsed ? rightPath : null,
-    !collapsed ? toCommit : null
+    !collapsed && !isWorkingTree ? rightPath : null,
+    !collapsed && !isWorkingTree ? toCommit : null
   )
 
   const leftBlameMap = useMemo(() => {

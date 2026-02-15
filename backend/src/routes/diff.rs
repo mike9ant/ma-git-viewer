@@ -20,11 +20,12 @@ use serde::Deserialize;
 
 use crate::error::{AppError, Result};
 use crate::git::SharedRepo;
-use crate::models::DiffResponse;
+use crate::models::{DiffResponse, WorkingTreeStatus};
 
 pub fn routes(repo: SharedRepo) -> Router {
     Router::new()
         .route("/api/v1/repository/diff", get(get_diff))
+        .route("/api/v1/repository/working-tree-status", get(get_working_tree_status))
         .with_state(repo)
 }
 
@@ -41,6 +42,13 @@ async fn get_diff(
     Query(query): Query<DiffQuery>,
 ) -> Result<Json<DiffResponse>> {
     let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+
+    // Intercept WORKING_TREE sentinel to diff HEAD vs working directory
+    if query.to == "WORKING_TREE" {
+        let response = repo.get_working_tree_diff(query.path.as_deref())?;
+        return Ok(Json(response));
+    }
+
     let mut response = repo.get_diff(
         query.from.as_deref(),
         &query.to,
@@ -66,4 +74,18 @@ async fn get_diff(
     }
 
     Ok(Json(response))
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkingTreeStatusQuery {
+    path: Option<String>,
+}
+
+async fn get_working_tree_status(
+    State(repo): State<SharedRepo>,
+    Query(query): Query<WorkingTreeStatusQuery>,
+) -> Result<Json<WorkingTreeStatus>> {
+    let repo = repo.read().map_err(|_| AppError::Internal("Lock poisoned".to_string()))?;
+    let status = repo.get_working_tree_status(query.path.as_deref())?;
+    Ok(Json(status))
 }

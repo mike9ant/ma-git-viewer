@@ -13,12 +13,13 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
-import { useCommits } from '@/api/hooks'
+import { useCommits, useWorkingTreeStatus } from '@/api/hooks'
+import { WORKING_TREE } from '@/api/types'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { GitCommit, GitCompare } from 'lucide-react'
+import { GitCommit, GitCompare, FileEdit } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContributorFilter } from './ContributorFilter'
 import { loadAuthorFilter, saveAuthorFilter, getExcludedAuthorsForApi, type AuthorFilterState } from '@/utils/authorFilter'
@@ -27,6 +28,7 @@ export function HistoryTab() {
   const { historyPath, selectedCommits, toggleCommitSelection, clearCommitSelection, openDiffModal } = useSelectionStore()
   const { compactMode, contributorFilterEnabled, setContributorFilterEnabled } = useSettingsStore()
   const [filterState, setFilterState] = useState<AuthorFilterState>(() => loadAuthorFilter())
+  const { data: workingTreeStatus } = useWorkingTreeStatus(historyPath || undefined)
 
   // Save filter state to localStorage whenever it changes
   useEffect(() => {
@@ -148,6 +150,41 @@ export function HistoryTab() {
       {/* Commits list */}
       <ScrollArea className="flex-1">
         <div className="divide-y divide-gray-200">
+          {/* Uncommitted changes row */}
+          {workingTreeStatus?.has_changes && (
+            <div
+              className={cn(
+                "flex items-start gap-3 px-4 bg-amber-50 border-l-2 border-l-amber-400",
+                compactMode ? "py-1.5 gap-2" : "py-3"
+              )}
+            >
+              <FileEdit className={cn("text-amber-600 shrink-0", compactMode ? "h-3.5 w-3.5 mt-0.5" : "h-4 w-4 mt-1")} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={cn("font-medium text-amber-800", compactMode ? "text-xs" : "text-sm")}>
+                    Uncommitted changes
+                  </span>
+                  <span className={cn("bg-amber-200 text-amber-800 rounded", compactMode ? "px-1 py-0 text-[10px]" : "px-1.5 py-0.5 text-xs")}>
+                    {workingTreeStatus.files_changed} file{workingTreeStatus.files_changed !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className={cn("text-amber-600", compactMode ? "mt-0.5 text-[11px]" : "mt-1 text-xs")}>
+                  Working tree changes not yet committed
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "border-amber-300 text-amber-700 hover:bg-amber-100",
+                  compactMode ? "text-[11px] h-6 px-2" : "text-xs"
+                )}
+                onClick={() => openDiffModal(null, WORKING_TREE, null, null)}
+              >
+                View vs HEAD
+              </Button>
+            </div>
+          )}
           {data?.commits.map((commit, index) => {
             const selectionIndex = selectedCommits.indexOf(commit.oid)
             const isSelected = selectionIndex !== -1

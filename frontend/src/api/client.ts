@@ -18,6 +18,7 @@ import type {
   DirectoryListing,
   BranchInfo,
   BlameResponse,
+  WorkingTreeStatus,
 } from './types'
 
 const API_BASE = '/api/v1'
@@ -133,5 +134,11 @@ export const api = {
   getBlame: (path: string, commit: string, signal?: AbortSignal) => {
     const params = new URLSearchParams({ path, commit })
     return fetchJson<BlameResponse>(`${API_BASE}/repository/blame?${params}`, signal)
+  },
+
+  getWorkingTreeStatus: (path?: string, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+    if (path) params.set('path', path)
+    return fetchJson<WorkingTreeStatus>(`${API_BASE}/repository/working-tree-status?${params}`, signal)
   },
 }

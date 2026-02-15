@@ -151,3 +151,11 @@ export function useBlame(path: string | null, commit: string | null) {
     enabled: !!path && !!commit,
   })
 }
+
+export function useWorkingTreeStatus(path?: string) {
+  return useQuery({
+    queryKey: ['workingTreeStatus', path],
+    queryFn: ({ signal }) => api.getWorkingTreeStatus(path, signal),
+    refetchInterval: 30000,
+  })
+}

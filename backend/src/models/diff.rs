@@ -89,3 +89,9 @@ pub struct DiffStats {
     pub insertions: usize,
     pub deletions: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkingTreeStatus {
+    pub has_changes: bool,
+    pub files_changed: usize,
+}

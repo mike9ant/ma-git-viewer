@@ -17,7 +17,7 @@ use std::path::Path;
 
 use crate::error::{AppError, Result};
 use crate::git::repository::GitRepository;
-use crate::models::{AuthorInfo, DiffHunk, DiffLine, DiffResponse, DiffStats, DiffStatus, FileAuthorInfo, FileDiff, LineType};
+use crate::models::{AuthorInfo, DiffHunk, DiffLine, DiffResponse, DiffStats, DiffStatus, FileAuthorInfo, FileDiff, LineType, WorkingTreeStatus};
 
 impl GitRepository {
     pub fn get_diff(
@@ -226,6 +226,184 @@ impl GitRepository {
         path: Option<&str>,
     ) -> Result<DiffResponse> {
         self.get_diff(Some(from_commit), to_commit, path)
+    }
+
+    pub fn get_working_tree_status(&self, path: Option<&str>) -> Result<WorkingTreeStatus> {
+        self.with_repo(|repo| {
+            // Bare or empty repos have no working tree
+            if repo.is_bare() || repo.head().is_err() {
+                return Ok(WorkingTreeStatus {
+                    has_changes: false,
+                    files_changed: 0,
+                });
+            }
+
+            let mut opts = git2::StatusOptions::new();
+            opts.include_untracked(true)
+                .recurse_untracked_dirs(true)
+                .include_ignored(false);
+
+            if let Some(p) = path {
+                if !p.is_empty() {
+                    opts.pathspec(p);
+                }
+            }
+
+            let statuses = repo.statuses(Some(&mut opts))?;
+            let files_changed = statuses.len();
+
+            Ok(WorkingTreeStatus {
+                has_changes: files_changed > 0,
+                files_changed,
+            })
+        })
+    }
+
+    pub fn get_working_tree_diff(&self, path: Option<&str>) -> Result<DiffResponse> {
+        let path_owned = path.map(|s| s.to_string());
+
+        self.with_repo(|repo| {
+            // Bare repos have no working tree
+            let workdir = repo.workdir()
+                .ok_or_else(|| AppError::Internal("Repository has no working directory".to_string()))?
+                .to_path_buf();
+
+            let head_commit = repo.head()
+                .map_err(|_| AppError::Internal("No HEAD found".to_string()))?
+                .peel_to_commit()
+                .map_err(|_| AppError::Internal("Cannot resolve HEAD to commit".to_string()))?;
+            let head_tree = head_commit.tree()?;
+            let head_oid = head_commit.id().to_string();
+
+            let mut opts = DiffOptions::new();
+            opts.context_lines(3)
+                .include_untracked(true)
+                .recurse_untracked_dirs(true);
+
+            if let Some(ref p) = path_owned {
+                if !p.is_empty() {
+                    opts.pathspec(p);
+                }
+            }
+
+            let diff = repo.diff_tree_to_workdir_with_index(
+                Some(&head_tree),
+                Some(&mut opts),
+            )?;
+
+            let mut files: Vec<FileDiff> = Vec::new();
+            let mut stats = DiffStats::default();
+
+            for (delta_idx, delta) in diff.deltas().enumerate() {
+                let status = match delta.status() {
+                    Delta::Added => DiffStatus::Added,
+                    Delta::Deleted => DiffStatus::Deleted,
+                    Delta::Modified => DiffStatus::Modified,
+                    Delta::Renamed => DiffStatus::Renamed,
+                    Delta::Copied => DiffStatus::Copied,
+                    Delta::Typechange => DiffStatus::TypeChanged,
+                    _ => DiffStatus::Unmodified,
+                };
+
+                let old_path = delta.old_file().path().map(|p| p.to_string_lossy().to_string());
+                let new_path = delta.new_file().path().map(|p| p.to_string_lossy().to_string());
+
+                let is_binary = delta.flags().is_binary();
+
+                // Old content from HEAD tree
+                let old_content = if !is_binary {
+                    old_path.as_ref().and_then(|p| {
+                        get_blob_content(repo, &head_tree, p).ok()
+                    })
+                } else {
+                    None
+                };
+
+                // New content from working directory
+                let new_content = if !is_binary {
+                    new_path.as_ref().and_then(|p| {
+                        let full_path = workdir.join(p);
+                        std::fs::read_to_string(&full_path).ok()
+                    })
+                } else {
+                    None
+                };
+
+                // Get hunks
+                let mut hunks: Vec<DiffHunk> = Vec::new();
+                let patch = git2::Patch::from_diff(&diff, delta_idx)?;
+
+                if let Some(patch) = patch {
+                    for hunk_idx in 0..patch.num_hunks() {
+                        let (hunk, _) = patch.hunk(hunk_idx)?;
+
+                        let mut lines: Vec<DiffLine> = Vec::new();
+
+                        for line_idx in 0..patch.num_lines_in_hunk(hunk_idx)? {
+                            let line = patch.line_in_hunk(hunk_idx, line_idx)?;
+
+                            let line_type = match line.origin() {
+                                '+' => {
+                                    stats.insertions += 1;
+                                    LineType::Addition
+                                }
+                                '-' => {
+                                    stats.deletions += 1;
+                                    LineType::Deletion
+                                }
+                                ' ' => LineType::Context,
+                                _ => LineType::Header,
+                            };
+
+                            let content = String::from_utf8_lossy(line.content()).to_string();
+
+                            lines.push(DiffLine {
+                                line_type,
+                                old_lineno: line.old_lineno(),
+                                new_lineno: line.new_lineno(),
+                                content,
+                            });
+                        }
+
+                        hunks.push(DiffHunk {
+                            old_start: hunk.old_start(),
+                            old_lines: hunk.old_lines(),
+                            new_start: hunk.new_start(),
+                            new_lines: hunk.new_lines(),
+                            header: String::from_utf8_lossy(hunk.header()).to_string(),
+                            lines,
+                        });
+                    }
+                }
+
+                files.push(FileDiff {
+                    old_path,
+                    new_path,
+                    status,
+                    hunks,
+                    old_content,
+                    new_content,
+                    is_binary,
+                    authors: Vec::new(),
+                    biggest_change_author: None,
+                });
+
+                stats.files_changed += 1;
+            }
+
+            let total_files = files.len();
+
+            Ok(DiffResponse {
+                from_commit: Some(head_oid),
+                to_commit: "WORKING_TREE".to_string(),
+                path: path_owned,
+                files,
+                stats,
+                contributors: Vec::new(),
+                total_files,
+                filtered_files: total_files,
+            })
+        })
     }
 }
 
