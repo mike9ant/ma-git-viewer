@@ -90,6 +90,7 @@ export function useSwitchRepository() {
       queryClient.invalidateQueries({ queryKey: ['commits'] })
       queryClient.invalidateQueries({ queryKey: ['file'] })
       queryClient.invalidateQueries({ queryKey: ['directoryInfo'] })
+      queryClient.invalidateQueries({ queryKey: ['workingTreeStatus'] })
     },
   })
 }
@@ -118,6 +119,7 @@ export function useCheckoutBranch() {
       queryClient.invalidateQueries({ queryKey: ['file'] })
       queryClient.invalidateQueries({ queryKey: ['directoryInfo'] })
       queryClient.invalidateQueries({ queryKey: ['diff'] })
+      queryClient.invalidateQueries({ queryKey: ['workingTreeStatus'] })
     },
   })
 }
@@ -140,6 +142,7 @@ export function useCheckoutRemoteBranch() {
       queryClient.invalidateQueries({ queryKey: ['file'] })
       queryClient.invalidateQueries({ queryKey: ['directoryInfo'] })
       queryClient.invalidateQueries({ queryKey: ['diff'] })
+      queryClient.invalidateQueries({ queryKey: ['workingTreeStatus'] })
     },
   })
 }
